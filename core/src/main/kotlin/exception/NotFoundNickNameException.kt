@@ -1,8 +1,8 @@
 package cn.luorenmu.exception
 
-import love.forte.simbot.message.Message
+import cn.luorenmu.command.entity.BotReply
 
 
-class NotFoundNickNameException(returnMsg: Message) :
+class NotFoundNickNameException(returnMsg: BotReply) :
     MessageReplyException(returnMsg) {
 }
