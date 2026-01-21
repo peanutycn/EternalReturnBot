@@ -65,14 +65,40 @@ data class DakGGProfileResponse(
         val playTime: Long = 0,
         val playerDeaths: Int = 0,
         val characterStats: List<ProfileStat>,
+        // Player's activity by server. Used as supporting info for "local" rank display.
+        val serverStats: List<ProfileServerStat> = listOf(),
         val mmrStats: List<List<Int>>,
         val duoStats: List<ProfileDuoStat>,
         val recentMatches: List<RecentGameMatcher>,
 
         /**
-         * val rank
+         * Rank info from DakGG profile:
+         * - global: global leaderboard position
+         * - local:  server-local leaderboard position
+         * - in1000: top-1000 segment position (if any)
          */
+        val rank: ProfileRank? = null,
     ) {
+        @Serializable
+        data class ProfileServerStat(
+            val key: String = "",
+            val updatedAt: Long = 0,
+            val play: Long = 0,
+        )
+
+        @Serializable
+        data class ProfileRank(
+            val in1000: ProfileRankGlobal? = null,
+            val local: ProfileRankGlobal? = null,
+            val global: ProfileRankGlobal? = null,
+        )
+
+        @Serializable
+        data class ProfileRankGlobal(
+            val rank: Long = 0,
+            val rankSize: Long = 0,
+        )
+
         @Serializable
         data class ProfileStat(
             val key: Long = 0,

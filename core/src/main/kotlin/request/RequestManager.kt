@@ -2,6 +2,7 @@ package cn.luorenmu.request
 
 import cn.luorenmu.common.util.PathUtils
 import cn.luorenmu.common.util.StringLockUtil.withKeyLock
+import cn.luorenmu.config.AppConfig
 import cn.luorenmu.exception.ForbiddenException
 import cn.luorenmu.request.api.Api
 import cn.luorenmu.request.api.EternalReturnOpenApi
@@ -14,6 +15,7 @@ import io.github.oshai.kotlinlogging.KotlinLogging
 import io.ktor.client.*
 import io.ktor.client.call.*
 import io.ktor.client.engine.cio.*
+import io.ktor.client.engine.ProxyBuilder
 import io.ktor.client.network.sockets.*
 import io.ktor.client.plugins.*
 import io.ktor.client.plugins.cache.*
@@ -66,6 +68,9 @@ object RequestManager {
                 keepAliveTime = 5000
                 connectTimeout = 10_000
                 connectAttempts = 3
+            }
+            AppConfig.http.proxyUrl?.let { proxyUrl ->
+                proxy = ProxyBuilder.http(Url(proxyUrl))
             }
 
         }
@@ -129,7 +134,10 @@ object RequestManager {
     }
 
     private suspend fun executeRequest(api: Api): HttpResponse {
-        val requestUrl = api.baseUrl + api.url
+        val requestUrl = (api.baseUrl + api.url).let {
+            // Support scheme-relative URLs like //cdn.example.com/...
+            if (it.startsWith("//")) "https:$it" else it
+        }
         return client.request {
             url(requestUrl)
             method = api.method

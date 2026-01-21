@@ -66,6 +66,36 @@ sealed class EternalReturnDakGGApi(
          */
         class GetProfile(nickname: String) :
             User("/v1/players/${URLEncoder.encode(nickname, "UTF-8")}/profile")
+
+        /**
+         * Matches list (used as a fallback when OpenAPI key is not configured).
+         */
+        class GetMatches(
+            nickname: String,
+            season: String,
+            matchingMode: String = "ALL",
+            teamMode: String = "ALL",
+            page: Int = 1,
+        ) : User(
+            "/v1/players/${URLEncoder.encode(nickname, "UTF-8")}/matches" +
+                "?season=${URLEncoder.encode(season, "UTF-8")}" +
+                "&matchingMode=${URLEncoder.encode(matchingMode, "UTF-8")}" +
+                "&teamMode=${URLEncoder.encode(teamMode, "UTF-8")}" +
+                "&page=${page}" +
+                "&hl=zh_CN"
+        )
+
+        /**
+         * Match detail by game id (used for teammate rendering).
+         */
+        class GetMatchById(
+            nickname: String,
+            seasonId: Int,
+            gameId: String,
+        ) : User(
+            "/v1/players/${URLEncoder.encode(nickname, "UTF-8")}/matches/${seasonId}/${URLEncoder.encode(gameId, "UTF-8")}?hl=zh_CN",
+            cacheTime = CacheTime.FIVE_MINUTES
+        )
     }
 
 

@@ -123,7 +123,9 @@ body {
 }
 
 #score {
-    height: 106px;
+    min-height: 106px;
+    height: auto;
+    padding: 10px 0;
     border-bottom: 1px solid rgb(230, 230, 230);
 }
 
@@ -141,7 +143,8 @@ body {
 
 #rp_box {
     margin-left: 15px;
-    margin-top: 25px;
+    margin-top: 15px;
+    text-align: left;
 }
 
 #rp {
@@ -153,6 +156,18 @@ body {
 #rp_name {
     font-size: 12px;
     font-weight: 900;
+}
+
+#rank_place {
+    margin-top: 4px;
+    font-size: 12px;
+    font-weight: 700;
+    color: #8b8b8b;
+    line-height: 16px;
+}
+
+.rank_place_item {
+    white-space: nowrap;
 }
 
 #record {
@@ -196,19 +211,14 @@ body {
 }
 
 .game_id {
+    float: left;
     font-size: 14px;
-    position: absolute;
-    color: #1b1a1a93;
-    font-weight: bold;
-    top: -11px;
-    left: 50%;
-    height: 20px;
-    padding: 0 10px;
-    text-align: center;
-    line-height: 20px;
-    z-index: 0;
+    color: #808080;
+}
 
-    transform: translate(-50%, -50%);
+.war_record .game_id {
+    margin-left: 20px;
+    margin-top: 2px;
 }
 
 .war_record_left_top1,
@@ -262,15 +272,21 @@ body {
 }
 
 .war_rank {
+    margin-top: 5px;
     width: 60px;
     height: 66px;
-    margin-left: 30px;
+    padding-left: 25px;
+    padding-top: 10px;
     font-size: 14px;
+    float: left;
 }
 
 .war_rank>div {
-    margin: 5px 0;
+    margin: 5px;
     height: 14px;
+    width: 66px;
+    white-space: nowrap;
+    line-height: 14px;
 }
 
 .war_rank>div:nth-child(1) {
@@ -296,6 +312,10 @@ body {
 
 
 .war_record_character_info {
+    margin-top: 4px;
+    float: left;
+    width: 54px;
+    height: 74px;
     text-align: center;
 
 }
@@ -314,7 +334,6 @@ body {
 }
 
 .hero_avatar>img {
-    object-fit: cover;
     border-radius: 50%;
 }
 
@@ -322,39 +341,38 @@ body {
     height: 98px;
     width: 100% -10;
     overflow: hidden;
-    display: flex;
-    flex-direction: row;
-    align-items: center;
 }
 
 .war_record2 {
     overflow: hidden;
     height: 50px;
-    display: flex;
-    flex-direction: row;
-    align-items: center;
-    justify-content: space-between;
     border-top: 1px solid rgb(230, 230, 230);
 }
 
 
 .war_record2 .hero_avatar,
 .war_record2 .hero_avatar>img {
+    float: left;
     width: 32.65px;
     height: 32.65px;
+    margin-top: 2.55px;
 }
 
 
 .war_record2 .play_data {
-    min-width: 380px;
+    margin-top: 7px;
+    margin-left: 50px;
+    width: 100px;
     height: 35.2px;
 }
 
 
 
 .war_record2 .skill {
-    width: 38px;
-    height: 38px;
+    margin-top: 5px;
+    margin-left: 5px;
+    width: 48px;
+    height: 48px;
 }
 
 .weapon {
@@ -403,25 +421,12 @@ body {
     width: 24px;
 }
 
-.war_record2 .item_box {
-    width: 102.4px;
-    height: 41.6px;
-}
-
-.war_record2 .item {
-    width: 27.4px;
-    height: 17.4px;
-}
-
-
 .skill {
-    margin-left: 15px;
-    display: flex;
-    justify-content: space-around;
-    flex-wrap: wrap;
-    align-content: space-around;
+    margin-top: 20px;
+    margin-left: 20px;
     width: 54px;
     height: 54px;
+    float: left;
 }
 
 img {
@@ -431,11 +436,12 @@ img {
 
 .play_data {
     height: 100%;
-    min-width: 350px;
-    margin-left: 30px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
+    border: #323232;
+    margin-top: 25px;
+    margin-left: 10px;
+    width: 300px;
+    height: 44px;
+    float: left;
 }
 
 .rp svg {
@@ -445,14 +451,13 @@ img {
 
 
 .play_data_title {
-    font: 14px;
+    font-size: 14px;
     font-weight: bold;
 }
 
 .play_data_label {
     margin-top: 3px;
     font-size: 12px;
-    text-align: center;
     color: #808080;
 }
 
@@ -462,14 +467,71 @@ img {
     color: red;
 }
 
+.play_stat {
+    margin-left: 20px;
+    width: 90px;
+    float: left;
+    height: 54px;
+    margin-top: 25px;
+}
+
+.stat {
+    font-size: 14px;
+    font-weight: bold;
+}
+
+.stat span {
+    font-weight: normal;
+}
+
+.label {
+    margin-top: 8px;
+    width: 70px;
+    height: 12px;
+    font-size: 12px;
+    color: #808080;
+}
+
+.damage {
+    width: 62px;
+    height: 44px;
+    display: inline-block;
+}
+
+.rp {
+    width: 100px;
+    height: 44px;
+    display: inline-block;
+}
+
+.route {
+    display: inline-block;
+    width: 100px;
+    height: 44px;
+}
+
+.war_record2 .play_stat {
+    margin-top: 7px;
+    margin-left: 100px;
+}
+
+.war_record2 .item_box {
+    margin-left: 75px;
+    margin-top: 10px;
+    width: 102.4px;
+    height: 41.6px;
+}
+
+.war_record2 .item {
+    width: 27.4px;
+    height: 17.4px;
+}
+
 .item_box {
+    margin-left: 20px;
+    margin-top: 20px;
     width: 128px;
-    margin-left: auto;
-    margin-right: 20px;
-    display: flex;
-    flex-wrap: wrap;
-    flex-direction: row;
-    justify-content: center;
+    float: left;
     height: 52px;
 }
 
@@ -477,6 +539,7 @@ img {
     position: relative;
     background-color: #E6E6E6;
     border-radius: 4px;
+    float: left;
     width: 40.5px;
     height: 25.5px;
     list-style: none;
@@ -496,22 +559,25 @@ img {
 }
 
 .item_bg {
-    position: relative;
+    position: absolute;
+    left: 0;
+    top: 0;
+    mix-blend-mode: multiply;
     z-index: 1;
 }
 
 
 .item_img {
-    position: absolute;
     z-index: 2;
-    left: 50%;
-    top: 50%;
-    height: 80%;
-    width: 80%;
-    transform: translate(-50%, -50%);
+    height: 70%;
+    left: 5px;
+    top: 4px;
+    width: 70%;
+    position: absolute;
 }
 
 .teammate_name {
+    float: left;
     width: 130px;
     margin-left: 20px;
     margin-top: 7px;
@@ -533,16 +599,26 @@ img {
 
 #recent_play,
 #rank_character_stats {
-    margin-top: 30px;
+    margin-top: 20px;
     border-spacing: 0;
     overflow: hidden;
     background-color: rgb(255, 255, 255);
     border-radius: 10px;
     border: solid 1px rgb(201, 201, 201);
     width: 100%;
+    max-width: 100%;
     font-size: 12px;
     border-collapse: separate;
     font-weight: normal;
+    box-sizing: border-box;
+    table-layout: fixed;
+}
+
+#rank_character_stats th,
+#rank_character_stats td,
+#recent_play th,
+#recent_play td {
+    box-sizing: border-box;
 }
 
 #rank_character_stats thead .character {
@@ -560,6 +636,20 @@ img {
     border-bottom: 1px solid rgb(201, 201, 201);
 }
 
+/* Make the character stats table denser to avoid a sparse look in the left panel. */
+#rank_character_stats tbody td {
+    padding: 4px 8px;
+}
+
+/* Reduce padding on fixed-width numeric columns to avoid table overflow. */
+#rank_character_stats tbody td.avg-rank,
+#rank_character_stats tbody td.avg-dmg,
+#rank_character_stats tbody td.get-rp,
+#rank_character_stats tbody td.win-rate {
+    padding-left: 6px;
+    padding-right: 6px;
+}
+
 
 
 
@@ -572,7 +662,69 @@ img {
 
 #recent_play>thead>tr>th,
 #rank_character_stats>thead>tr>th {
-    height: 40px;
+    height: 36px;
+}
+
+#rank_character_stats thead th {
+    font-size: 11px;
+}
+
+/* Prevent Chinese headers like "平均排名" from wrapping. Reserve enough width to avoid overlap. */
+#rank_character_stats thead th.avg-rank,
+#rank_character_stats thead th.avg-dmg,
+#recent_play thead th.avg-rank {
+    white-space: nowrap;
+    padding: 0 6px;
+}
+
+#rank_character_stats thead th.avg-rank,
+#rank_character_stats tbody td.avg-rank {
+    width: 50px;
+}
+
+#rank_character_stats thead th.avg-dmg,
+#rank_character_stats tbody td.avg-dmg {
+    width: 62px;
+}
+
+#rank_character_stats thead th.win-rate,
+#rank_character_stats tbody td.win-rate {
+    width: 48px;
+}
+
+#rank_character_stats thead th.get-rp,
+#rank_character_stats tbody td.get-rp {
+    width: 50px;
+}
+
+#recent_play thead th.win-rate,
+#recent_play tbody td.win-rate {
+    width: 56px;
+    text-align: center;
+}
+
+#recent_play thead th.avg-rank,
+#recent_play tbody td.avg-rank {
+    width: 52px;
+    text-align: center;
+}
+
+/* Nudge values slightly left to avoid looking too close to the rounded right border. */
+#recent_play thead th.win-rate,
+#recent_play tbody td.win-rate {
+    padding-left: 2px;
+    padding-right: 14px;
+}
+
+#recent_play thead th.avg-rank,
+#recent_play tbody td.avg-rank {
+    padding-left: 2px;
+    padding-right: 18px;
+}
+
+#recent_play thead th:last-child,
+#recent_play tbody td:last-child {
+    padding-right: 20px;
 }
 
 
@@ -581,15 +733,41 @@ img {
 }
 
 .character {
-    padding-left: 10px;
+    padding-left: 8px;
     text-align: left;
 }
 
+.character_cell {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+}
+
+#rank_character_stats .image-wrapper,
+#recent_play .image-wrapper {
+    width: 36px;
+    height: 36px;
+}
+
 .info {
-    display: inline-block;
-    margin-left: 8px;
-    height: 38px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    height: 36px;
     font-size: 13px;
+    min-width: 0;
+    flex: 1 1 auto;
+}
+
+.info .name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.plays {
+    white-space: nowrap;
 }
 
 .plays {
@@ -597,14 +775,19 @@ img {
     color: #646464;
 }
 
-.avg-rank {
+#rank_character_stats td.avg-rank {
     padding-right: 10px;
     text-align: right;
 }
 
-.avg-dmg {
+#rank_character_stats td.avg-dmg {
     padding-right: 10px;
     text-align: right;
+}
+
+#recent_play td.avg-rank {
+    padding-right: 0;
+    text-align: center;
 }
 
 #rank_character_stats tbody .avg-dmg {
@@ -613,9 +796,19 @@ img {
 
 
 
-#rank_character_stats>tbody>tr>td .win-rate,
-.get-rp {
+#rank_character_stats td.win-rate {
     text-align: center;
+}
+
+#rank_character_stats td.get-rp {
+    white-space: nowrap;
+    text-align: right;
+    padding-left: 2px;
+}
+
+#rank_character_stats td.get-rp svg {
+    vertical-align: middle;
+    margin-right: 2px;
 }
 
 #rank_character_stats tbody .get-rp img {
@@ -626,7 +819,6 @@ img {
 .image-wrapper {
     display: inline-block;
     height: 40px;
-    vertical-align: bottom;
     width: 40px;
 }
 
@@ -654,4 +846,40 @@ img {
     display: flex;
     justify-content: center;
     align-items: center;
+}
+
+#rank_canvas {
+    width: 320px;
+    height: 130px;
+    display: block;
+}
+
+#rank_svg {
+    width: 320px;
+    height: 130px;
+    display: block;
+}
+
+#rank_svg .mmr-grid line {
+    stroke: rgba(0, 0, 0, 0.08);
+    stroke-width: 1;
+    shape-rendering: crispEdges;
+}
+
+#rank_svg .mmr-grid text,
+#rank_svg .mmr-xlabels text {
+    fill: #666;
+    font-size: 12px;
+    font-family: '微软雅黑';
+}
+
+#rank_svg .mmr-line {
+    stroke: rgb(202, 164, 40);
+    stroke-width: 2;
+}
+
+#rank_svg .mmr-point {
+    fill: rgb(202, 164, 40);
+    stroke: #ffffff;
+    stroke-width: 1;
 }

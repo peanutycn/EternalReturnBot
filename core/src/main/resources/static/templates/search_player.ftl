@@ -5,8 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Document</title>
-    <link rel="stylesheet" href="${httpServer}/static/css/search_player.css">
-    <script src="${httpServer}/static/js/chart.js"></script>
+    <link rel="stylesheet" href="${httpServer}/static/css/search_player.css?v=${.now?long}">
 </head>
 <body>
 <div id="content-container">
@@ -22,7 +21,7 @@
             <div id="top">
                 <div class="level">Lv.${level}</div>
                 <div class="nickname">${nickName}</div>
-                <p>保留字段</p>
+                <p>${seasonPlayTimeText}</p>
             </div>
         </div>
         <div id="describe">
@@ -46,6 +45,16 @@
                         <div id="rp_name">
                             ${data.rpName}
                         </div>
+                        <#if (data.globalRankText)?has_content || (data.localRankText)?has_content>
+                            <div id="rank_place">
+                                <#if (data.globalRankText)?has_content>
+                                    <div class="rank_place_item">${data.globalRankText}</div>
+                                </#if>
+                                <#if (data.localRankText)?has_content>
+                                    <div class="rank_place_item">local ${data.localRankText}</div>
+                                </#if>
+                            </div>
+                        </#if>
                     </div>
                 </div>
                 <div id="record">
@@ -90,53 +99,113 @@
                     </div>
                 </div>
 
-                <#if mmrStats?? && mode == "排位">
-                    <div id="rank_stats">
-                        <canvas id="rank_canvas"></canvas>
-                    </div>
-                    <script>
-                        const ctx = document.getElementById('rank_canvas');
-                        const labels = ${mmrStats.mmrDateJson};
-                        const data = {
-                            labels: labels,
-                            datasets: [{
-                                data: ${mmrStats.mmrJson},
-                                fill: false,
-                                borderColor: 'rgb(202, 164, 40)',
-                                backgroundColor: ['rgb(202, 164, 40)'],
-                                pointRadius: 4,
-                                tension: 0.1,
-                            }]
-                        };
+                <#if mmrStats?? && (mmrStats.chart)??>
+                    <#assign chart = mmrStats.chart>
+                    <#if ((chart.circles)![])?has_content>
+                        <#assign _chartW = (chart.width)!320>
+                        <#assign _chartH = (chart.height)!130>
+                        <#assign _padL = (chart.paddingLeft)!56>
+                        <#assign _padR = (chart.paddingRight)!12>
+                        <#assign _padT = (chart.paddingTop)!10>
+                        <#assign _padB = (chart.paddingBottom)!22>
+                        <#assign _plotW = (_chartW - _padL - _padR)>
+                        <#assign _plotH = (_chartH - _padT - _padB)>
+                        <#assign _mmrValues = (mmrStats.mmr)![]>
+                        <#assign _mmrLabels = (mmrStats.mmrDate)![]>
+                        <#assign _n = _mmrValues?size>
+                        <#if _mmrLabels?size < _n><#assign _n = _mmrLabels?size></#if>
+                        <div id="rank_stats">
+                            <svg id="rank_svg"
+                                 width="${_chartW}"
+                                 height="${_chartH}"
+                                 viewBox="0 0 ${_chartW} ${_chartH}"
+                                 overflow="visible"
+                                 style="font-family: Microsoft YaHei, sans-serif; font-size: 12px; fill: #666;"
+                                 xmlns="http://www.w3.org/2000/svg">
+                                <g class="mmr-grid">
+                                    <#if ((chart.yTicks)![])?has_content>
+                                        <#list (chart.yTicks)![] as tick>
+                                            <line x1="${_padL}" y1="${tick.y}"
+                                                  x2="${_chartW - _padR}" y2="${tick.y}"
+                                                  stroke="rgba(0,0,0,0.08)" stroke-width="1" shape-rendering="crispEdges"/>
+                                            <text x="${_padL - 10}" y="${tick.y}"
+                                                  text-anchor="end"
+                                                  dominant-baseline="middle"
+                                                  fill="#666">${tick.label}</text>
+                                        </#list>
+                                    <#elseif _n gt 0>
+                                        <#assign _sorted = (_mmrValues[0.._n-1])?sort>
+                                        <#assign _rawMin = _sorted[0]>
+                                        <#assign _rawMax = _sorted[_sorted?size - 1]>
+                                        <#assign _span = _rawMax - _rawMin>
+                                        <#if _span lt 1><#assign _span = 1></#if>
+                                        <#assign _step =
+                                            (_span lte 30)?then(10,
+                                            (_span lte 100)?then(20,
+                                            (_span lte 250)?then(50,
+                                            (_span lte 500)?then(100,
+                                            (_span lte 1000)?then(200, 500)))))>
+                                        <#assign _minY = ((_rawMin / _step)?floor * _step)?int>
+                                        <#assign _maxY = ((_rawMax / _step)?ceiling * _step)?int>
+                                        <#if _maxY == _minY><#assign _maxY = _minY + _step></#if>
+                                        <#assign _rangeY = _maxY - _minY>
+                                        <#assign _tickCount = ((_rangeY / _step)?int + 1)>
+                                        <#list 0.._tickCount-1 as _i>
+                                            <#assign _v = (_minY + _i * _step)>
+                                            <#assign _t = (_v - _minY) / _rangeY>
+                                            <#assign _y = (_padT + (1 - _t) * _plotH)?round>
+                                            <line x1="${_padL}" y1="${_y}"
+                                                  x2="${_chartW - _padR}" y2="${_y}"
+                                                  stroke="rgba(0,0,0,0.08)" stroke-width="1" shape-rendering="crispEdges"/>
+                                            <text x="${_padL - 10}" y="${_y}"
+                                                  text-anchor="end"
+                                                  dominant-baseline="middle"
+                                                  fill="#666">${_v}</text>
+                                        </#list>
+                                    </#if>
+                                </g>
 
-                        const config = {
-                            type: 'line', // 表类型
-                            data: data,
-                            options: {
-                                plugins: {
-                                    legend: {
-                                        display: false
-                                    }
-                                },
-                                scales: {
-                                    x: {
-                                        grid: {
-                                            display: false
-                                        }
-                                    },
-                                    y: {
-                                        grid: {
-                                            display: false
-                                        },
-                                        ticks: {
-                                            stepSize: 100
-                                        }
-                                    }
-                                }
-                            }
-                        };
-                        const myChart = new Chart(ctx, config);
-                    </script>
+                                <g class="mmr-xlabels">
+                                    <#if ((chart.xLabels)![])?has_content>
+                                        <#list (chart.xLabels)![] as xl>
+                                            <text x="${xl.x}" y="${_chartH - _padB + 6}"
+                                                  text-anchor="middle"
+                                                  dominant-baseline="hanging"
+                                                  fill="#666">${xl.label}</text>
+                                        </#list>
+                                    <#elseif _n gt 0>
+                                        <#assign _maxXLabels = 7>
+                                        <#assign _stepX = ((_n + _maxXLabels - 1) / _maxXLabels)?int>
+                                        <#if _stepX lt 1><#assign _stepX = 1></#if>
+                                        <#list 0.._n-1 as _i>
+                                            <#if (_i % _stepX) == 0>
+                                                <#assign _x = (_n lte 1)?then((_padL + _plotW / 2)?round, (_padL + (_plotW * _i) / (_n - 1))?round)>
+                                                <text x="${_x}" y="${_chartH - _padB + 6}"
+                                                      text-anchor="middle"
+                                                      dominant-baseline="hanging"
+                                                      fill="#666">${_mmrLabels[_i]}</text>
+                                            </#if>
+                                        </#list>
+                                        <#if _n gt 1 && ((_n - 1) % _stepX) != 0>
+                                            <#assign _i = _n - 1>
+                                            <#assign _x = (_padL + (_plotW * _i) / (_n - 1))?round>
+                                            <text x="${_x}" y="${_chartH - _padB + 6}"
+                                                  text-anchor="middle"
+                                                  dominant-baseline="hanging"
+                                                  fill="#666">${_mmrLabels[_i]}</text>
+                                        </#if>
+                                    </#if>
+                                </g>
+
+                                <polyline class="mmr-line" fill="none" points="${(chart.points)!''}"
+                                          stroke="rgb(202, 164, 40)" stroke-width="2"/>
+                                <#list (chart.circles)![] as p>
+                                    <circle class="mmr-point" cx="${p.x}" cy="${p.y}" r="4"
+                                            fill="rgb(202, 164, 40)" stroke="#ffffff" stroke-width="1"/>
+                                </#list>
+                            </svg>
+                        </div>
+                    </#if>
                 </#if>
 
 
@@ -155,16 +224,19 @@
                         </tr>
                         </thead>
                         <tbody>
-                        <#list characterUseStats as character>
-                            <tr>
-                                <td class="character">
-                                    <div class="image-wrapper"><img
-                                                src="${httpServer}${character.imgUrl}"
-                                                alt=""></div>
-                                    <div class="info">${character.characterName}
-                                        <div class="plays">${character.characterPlay} 游戏</div>
-                                    </div>
-                                </td>
+	                        <#list characterUseStats as character>
+	                            <tr>
+	                                <td class="character">
+	                                    <div class="character_cell">
+	                                        <div class="image-wrapper"><img
+	                                                    src="${httpServer}${character.imgUrl}"
+	                                                    alt=""></div>
+	                                        <div class="info">
+	                                            <div class="name">${character.characterName}</div>
+	                                            <div class="plays">${character.characterPlay} 游戏</div>
+	                                        </div>
+	                                    </div>
+	                                </td>
                                 <td class="win-rate">${character.winRate}</td>
                                 <td class="get-rp">
                                     <#if character.getRP gte 0>
@@ -204,16 +276,19 @@
                         </tr>
                         </thead>
                         <tbody>
-                        <#list recentPlayers as recentPlayer>
-                            <tr>
-                                <td class="character">
-                                    <div class="image-wrapper"><img
-                                                src="${httpServer}${recentPlayer.imageWrapperUrl}"
-                                                alt=""></div>
-                                    <div class="info">${recentPlayer.nickname}
-                                        <div class="plays">${recentPlayer.plays} 游戏</div>
-                                    </div>
-                                </td>
+	                        <#list recentPlayers as recentPlayer>
+	                            <tr>
+	                                <td class="character">
+	                                    <div class="character_cell">
+	                                        <div class="image-wrapper"><img
+	                                                    src="${httpServer}${recentPlayer.imageWrapperUrl}"
+	                                                    alt=""></div>
+	                                        <div class="info">
+	                                            <div class="name">${recentPlayer.nickname}</div>
+	                                            <div class="plays">${recentPlayer.plays} 游戏</div>
+	                                        </div>
+	                                    </div>
+	                                </td>
                                 <td class="win-rate">
                                     ${recentPlayer.winRate}
                                 </td>
@@ -234,15 +309,11 @@
                     ${rating}
                 </div>
             </#if>
-            <#list matches as match>
-                <div class="war_record">
-                    <div class="game_id">Game ID
-                        ${match.serverName}-${match.gameId}
-                        (${match.version})
-                    </div>
-                    <#if match.rank == 99>
-                        <div class="war_record_left_escape"></div>
-                        <div class="war_record_right_escape"></div>
+	            <#list matches as match>
+	                <div class="war_record">
+	                    <#if match.rank == 99>
+	                        <div class="war_record_left_escape"></div>
+	                        <div class="war_record_right_escape"></div>
                     <#elseif match.rank gte 3 || (match.type == "钴协议" && match.rank == 2) >
                         <div class="war_record_left_top3"></div>
                         <div class="war_record_right_top3"></div>
@@ -296,15 +367,15 @@
                             </div>
                         </div>
 
-                        <div class="play_data">
-                            <div class="play_stat">
-                                <div class="play_data_title">
-                                    ${match.tk} <span>/</span> ${match.kill} <span>/</span> ${match.assist}
-                                </div>
-                                <div class="play_data_label">
-                                    TK <span>/</span> K <span>/</span> A
-                                </div>
+                        <div class="play_stat">
+                            <div class="stat">
+                                ${match.tk} <span>/</span> ${match.kill} <span>/</span> ${match.assist}
                             </div>
+                            <div class="label">
+                                TK <span>/</span> K <span>/</span> A
+                            </div>
+                        </div>
+                        <div class="play_data">
                             <div class="damage">
                                 <div class="play_data_title">${match.dmg}</div>
                                 <div class="play_data_label">DMG</div>
@@ -346,9 +417,9 @@
                             </div>
                         </div>
 
-                        <ul class="item_box">
-                            <#list match.equips as equip>
-                                <li class="item">
+	                        <ul class="item_box">
+	                            <#list match.equips as equip>
+	                                <li class="item">
                                     <#if equip.itemBgUrl != "" >
                                         <img class="item_bg" src="${httpServer}${equip.itemBgUrl}"
                                              alt="">
@@ -357,18 +428,24 @@
                                         <img class="item_img"
                                              src="${httpServer}${equip.itemUrl}" alt="">
                                     </#if>
-                                </li>
-                            </#list>
-                        </ul>
-                    </div>
+	                                </li>
+	                            </#list>
+	                        </ul>
+	                        <div class="game_id">Game ID
+	                            ${match.serverName}-${match.gameId}
+	                            (${match.version})
+	                        </div>
+	                    </div>
                     <#if match.teamMates??>
                         <#list match.teamMates as teamMate>
                             <div class="war_record2">
                                 <div class="teammate_name">
                                     <div class="play_name">${teamMate.nickName}</div>
                                     <div class="teammate_rp">
-                                        <div class="teammate_rp_img"><img
-                                                    src="${httpServer}${teamMate.rpImageUrl}" alt=""></div>
+                                        <#if teamMate.rpImageUrl?has_content>
+                                            <div class="teammate_rp_img"><img
+                                                        src="${httpServer}${teamMate.rpImageUrl}" alt=""></div>
+                                        </#if>
                                         <span>${teamMate.rp} RP</span>
                                     </div>
                                 </div>
@@ -395,15 +472,15 @@
                                                  alt="">
                                     </div>
                                 </div>
-                                <div class="play_data">
-                                    <div class="play_stat">
-                                        <div class="play_data_title">
-                                            ${teamMate.tk} <span>/</span> ${teamMate.kill} <span>/</span> ${teamMate.assist}
-                                        </div>
-                                        <div class="play_data_label">
-                                            TK <span>/</span> K <span>/</span> A
-                                        </div>
+                                <div class="play_stat">
+                                    <div class="stat">
+                                        ${teamMate.tk} <span>/</span> ${teamMate.kill} <span>/</span> ${teamMate.assist}
                                     </div>
+                                    <div class="label">
+                                        TK <span>/</span> K <span>/</span> A
+                                    </div>
+                                </div>
+                                <div class="play_data">
                                     <div class="damage">
                                         <div class="play_data_title">${teamMate.dmg}</div>
                                         <div class="play_data_label">DMG</div>
