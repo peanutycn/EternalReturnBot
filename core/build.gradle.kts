@@ -15,6 +15,7 @@ dependencies {
     implementation(libs.simbot.core)
     implementation(libs.ktor.client.cio)
     implementation(libs.ktor.server.core)
+    implementation("com.typesafe:config:1.4.3")
     implementation(libs.ktor.client.content.negotiation)
     implementation(libs.koin.ktor)
     implementation("com.microsoft.playwright:playwright:1.42.0")
@@ -25,6 +26,7 @@ dependencies {
     implementation("io.ktor:ktor-server-freemarker:2.3.12")
     implementation("io.ktor:ktor-serialization-kotlinx-json:2.3.12")
     implementation("io.insert-koin:koin-logger-slf4j:3.5.6")
+    implementation("com.belerweb:pinyin4j:2.5.1")
     testImplementation(kotlin("test"))
 }
 
