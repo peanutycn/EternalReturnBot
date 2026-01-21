@@ -47,6 +47,11 @@ object PathUtils {
         return pathResolve(basePath, *paths)
     }
 
+    fun dataPathResolve(vararg paths: String): Path {
+        val basePath = currentDirectory.resolve("data")
+        return pathResolve(basePath, *paths)
+    }
+
 }
 
 fun String.toPath(): Path {
@@ -60,5 +65,4 @@ fun String.toPathString(): String {
 fun String.toResourcesPath(): Path {
     return PathUtils.resourcesPathResolve(this)
 }
-
 

@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <!-- Default to INFO to avoid noisy logs in production. Override via env: LOMU_LOG_LEVEL=DEBUG -->
+    <property name="ROOT_LEVEL" value="${LOMU_LOG_LEVEL:-INFO}"/>
+
+    <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{40} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <!-- Suppress noisy framework logs (e.g. incoming events). Keep our own logs visible. -->
+    <logger name="love.forte.simbot" level="WARN"/>
+    <logger name="love.forte" level="INFO"/>
+    <logger name="io.ktor" level="INFO"/>
+    <logger name="cn.luorenmu" level="INFO"/>
+
+    <root level="${ROOT_LEVEL}">
+        <appender-ref ref="STDOUT"/>
+    </root>
+</configuration>

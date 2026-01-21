@@ -3,8 +3,11 @@ package cn.luorenmu
 
 import cn.luorenmu.api.resourcesRouting
 import cn.luorenmu.common.util.BrowserPool
+import cn.luorenmu.config.AppConfig
 import cn.luorenmu.service.EternalReturnRenderService
 import cn.luorenmu.service.ResourcesDownloadService
+import cn.luorenmu.service.OneBotRoleService
+import cn.luorenmu.service.AliasService
 import freemarker.cache.ClassTemplateLoader
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.ktor.server.application.*
@@ -12,7 +15,6 @@ import io.ktor.server.freemarker.*
 import io.ktor.server.routing.*
 import org.koin.dsl.module
 import org.koin.ktor.plugin.Koin
-import java.io.File
 
 /**
  *
@@ -22,7 +24,11 @@ import java.io.File
  */
 class CoreApplication
 
-public val apiKey = mutableMapOf("x-api-key" to File("E:\\code\\Kotlin Code\\api-key.txt").readText())
+public val apiKey: MutableMap<String, String> by lazy {
+    mutableMapOf<String, String>().apply {
+        AppConfig.bser.openApiKey?.let { put("x-api-key", it) }
+    }
+}
 
 var SERVER_PORT: Int = 8080
 var HTTP_SERVER_URL = "http://127.0.0.1:${SERVER_PORT}"
@@ -41,9 +47,8 @@ fun Application.moduleCore(adapter: Adapter) {
     log.info("正在启动 PlayWright")
     BrowserPool.getBrowser()
     log.info("PlayWright 已启动")
-    environment.config.port.let {
-        SERVER_PORT = it
-    }
+    SERVER_PORT = AppConfig.server.port
+    HTTP_SERVER_URL = "http://127.0.0.1:$SERVER_PORT"
 }
 
 
@@ -51,6 +56,8 @@ val appModule = module {
 
     single { ResourcesDownloadService() }
     single { EternalReturnRenderService() }
+    single { OneBotRoleService() }
+    single { AliasService() }
 }
 
 fun Application.configureInstall() {

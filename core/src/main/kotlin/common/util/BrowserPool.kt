@@ -1,11 +1,14 @@
 package cn.luorenmu.common.util
 
+import cn.luorenmu.config.AppConfig
 import com.microsoft.playwright.Browser
 import com.microsoft.playwright.BrowserType
 import com.microsoft.playwright.Page
 import com.microsoft.playwright.Playwright
 import com.microsoft.playwright.options.BoundingBox
+import com.microsoft.playwright.options.LoadState
 import com.microsoft.playwright.options.WaitUntilState
+import io.github.oshai.kotlinlogging.KotlinLogging
 import java.nio.file.Path
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.atomic.AtomicInteger
@@ -16,11 +19,12 @@ import java.util.concurrent.atomic.AtomicInteger
  * Date 2025/10/25 17:40
  */
 object BrowserPool {
-    private const val POOL = 1
-    private val webPageScreenshots = run {
+    private val log = KotlinLogging.logger { }
+
+    private val webPageScreenshots: CopyOnWriteArrayList<WebPageScreenshot> by lazy {
         val item = CopyOnWriteArrayList<WebPageScreenshot>()
-        (1..POOL).forEach { i ->
-            item.add(WebPageScreenshot(false))
+        repeat(AppConfig.playwright.poolSize) {
+            item.add(WebPageScreenshot(AppConfig.playwright.headless))
         }
         item
     }
@@ -32,7 +36,7 @@ object BrowserPool {
         return webPageScreenshots[idx]
     }
 
-    class WebPageScreenshot internal constructor(headless: Boolean = true) {
+    class WebPageScreenshot internal constructor(headless: Boolean) {
         private val playwright: Playwright = Playwright.create()
         private val browser: Browser =
 
@@ -49,8 +53,6 @@ object BrowserPool {
                         "Accept" to "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8"
                     )
                 )
-                .setViewportSize(1920, 1080)
-                .setDeviceScaleFactor(2.0)
         )
 
         private val page = context.newPage()
@@ -65,7 +67,7 @@ object BrowserPool {
             url: String,
             selector: String,
             waitUntilState: WaitUntilState = WaitUntilState.DOMCONTENTLOADED,
-            pageConsumer: (page: Page, box: BoundingBox) -> Unit,
+            pageConsumer: (page: Page, box: BoundingBox?) -> Unit,
         ) {
             synchronized(this) {
                 page.navigate(url, Page.NavigateOptions().setWaitUntil(waitUntilState).setTimeout(15000.0))
@@ -85,13 +87,18 @@ object BrowserPool {
             synchronized(this) {
                 page.navigate(url, Page.NavigateOptions().setWaitUntil(waitUntilState).setTimeout(15000.0))
                 val locator = page.locator(selector)
-                val boundingBox = locator.boundingBox()
                 pageConsumer(page)
-                page.screenshot(
-                    Page.ScreenshotOptions().setPath(output)
-                        .setFullPage(true)
-                        .setClip(boundingBox.x, boundingBox.y, boundingBox.width, boundingBox.height)
-                )
+                // Compute bounding box after page customization (e.g. expanding scroll containers).
+                val boundingBox = locator.boundingBox()
+                if (boundingBox == null) {
+                    page.screenshot(Page.ScreenshotOptions().setPath(output).setFullPage(true))
+                } else {
+                    page.screenshot(
+                        Page.ScreenshotOptions().setPath(output)
+                            .setFullPage(true)
+                            .setClip(boundingBox.x, boundingBox.y, boundingBox.width, boundingBox.height)
+                    )
+                }
             }
         }
 
@@ -101,7 +108,43 @@ object BrowserPool {
             selector: String,
         ) {
             synchronized(this) {
-                page.setContent(html)
+                page.setContent(
+                    html,
+                    Page.SetContentOptions()
+                        .setWaitUntil(WaitUntilState.DOMCONTENTLOADED)
+                        .setTimeout(15000.0)
+                )
+                // Best-effort wait to reduce flaky rendering (images/charts).
+                runCatching { page.waitForLoadState(LoadState.LOAD) }
+                runCatching {
+                    page.waitForFunction(
+                        "() => Array.from(document.images || []).every(img => img.complete)",
+                        null,
+                        Page.WaitForFunctionOptions().setTimeout(8000.0)
+                    )
+                }
+                runCatching {
+                    page.waitForFunction(
+                        "() => { const svg = document.getElementById('rank_svg'); if (svg) return true; const c = document.getElementById('rank_canvas'); if (!c) return true; const s = window.__erbot_rank_chart_status; return s === 'drawn' || s === 'skipped' || s === 'error'; }",
+                        null,
+                        Page.WaitForFunctionOptions().setTimeout(8000.0)
+                    )
+                }
+                runCatching {
+                    val status = page.evaluate("window.__erbot_rank_chart_status")?.toString()
+                    val canvasW = page.evaluate("document.getElementById('rank_canvas')?.clientWidth")?.toString()
+                    val canvasH = page.evaluate("document.getElementById('rank_canvas')?.clientHeight")?.toString()
+                    val dataUrlLen = page.evaluate(
+                        "(() => { const c=document.getElementById('rank_canvas'); if(!c||!c.toDataURL) return null; return c.toDataURL('image/png').length; })()"
+                    )?.toString()
+                    val svgW = page.evaluate("document.getElementById('rank_svg')?.getAttribute('width')")?.toString()
+                    val svgH = page.evaluate("document.getElementById('rank_svg')?.getAttribute('height')")?.toString()
+                    val svgPointsLen = page.evaluate(
+                        "document.querySelector('#rank_svg polyline')?.getAttribute('points')?.length"
+                    )?.toString()
+                    log.debug { "Rank chart status=$status canvas=${canvasW}x${canvasH} dataUrlLen=$dataUrlLen svg=${svgW}x${svgH} svgPointsLen=$svgPointsLen" }
+                }
+                runCatching { page.waitForTimeout(300.0) }
                 val locator = page.locator(selector)
                 val boundingBox = locator.boundingBox()
                 page.screenshot(
