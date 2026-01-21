@@ -1,10 +1,12 @@
 package cn.luorenmu.qqbot.listen
 
 import cn.luorenmu.command.CommandRouter
+import cn.luorenmu.command.entity.BotReply
 import cn.luorenmu.command.entity.MessageSender
 import cn.luorenmu.listen.EventHandle
 import love.forte.simbot.component.qguild.event.QGGroupAtMessageCreateEvent
 import love.forte.simbot.event.Event
+import love.forte.simbot.message.OfflineImage
 
 /**
  * @author LoMu
@@ -22,15 +24,22 @@ class GroupAtMessageCreateListen : EventHandle {
 
         val reply = commandListenAllocator.call(
             MessageSender(
-                groupOpenId = event.id,
+                groupOpenId = event.id.toString(),
                 senderName = event.author().name,
-                senderOpenId = event.authorId,
+                senderOpenId = event.authorId.toString(),
                 message = event.messageContent.messages.toString(),
                 plainText = event.messageContent.plainText,
             )
         )
 
-        reply?.let { atEvent.reply(it) } ?: atEvent.reply("命令错误")
+        suspend fun replyOne(r: BotReply) {
+            when (r) {
+                is BotReply.Text -> atEvent.reply(r.text)
+                is BotReply.ImageFile -> atEvent.reply(OfflineImage.fileOfflineImage(r.path))
+                is BotReply.Multi -> r.replies.forEach { replyOne(it) }
+            }
+        }
+        if (reply == null) atEvent.reply("命令错误") else replyOne(reply)
     }
 
 }
