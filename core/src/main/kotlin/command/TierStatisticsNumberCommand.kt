@@ -1,6 +1,7 @@
 package cn.luorenmu.command
 
 import cn.luorenmu.command.entity.MessageSender
+import cn.luorenmu.command.entity.BotReply
 import cn.luorenmu.common.annotation.BotCommand
 import cn.luorenmu.common.util.BrowserPool
 import cn.luorenmu.common.util.PathUtils
@@ -13,8 +14,6 @@ import cn.luorenmu.service.EternalReturnRenderService
 import cn.luorenmu.service.ResourcesDownloadService
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.coroutineScope
-import love.forte.simbot.message.Message
-import love.forte.simbot.message.OfflineImage
 import org.koin.java.KoinJavaComponent.inject
 
 /**
@@ -30,7 +29,7 @@ class TierStatisticsNumberCommand : CommandEvent {
         EternalReturnRenderService::class.java
     )
 
-    override suspend fun listen(sender: MessageSender, command: Map<String, String>): Message? {
+    override suspend fun listen(sender: MessageSender, command: Map<String, String>): BotReply? {
         val serverName = command["server"]?.let { DakGGServerName.convert(it) } ?: DakGGServerName.Asia
         preheatRequest(serverName)
         val cutoffsAndTierNumber = eternalReturnRenderService.getCutoffsAndTierNumber(serverName)
@@ -40,7 +39,7 @@ class TierStatisticsNumberCommand : CommandEvent {
             outputPath,
             "#app"
         )
-        return OfflineImage.fileOfflineImage(outputPath.toString())
+        return BotReply.ImageFile(outputPath.toString())
     }
 
     private suspend fun preheatRequest(serverName: DakGGServerName) {
@@ -63,4 +62,3 @@ class TierStatisticsNumberCommand : CommandEvent {
         }
     }
 }
-
