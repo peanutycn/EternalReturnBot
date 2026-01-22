@@ -27,7 +27,7 @@ body {
     width: 100%;
     background-size: contain;
     background-position: center;
-    background-image: url("https://cdn.dak.gg/er/images/bg/bg-landing-search-v9.jpg");
+    background-image: var(--season-bg, url("https://cdn.dak.gg/er/images/bg/bg-landing-search-v10.jpg"));
     box-sizing: content-box;
     border: 1px solid #363944;
     display: flex;

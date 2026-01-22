@@ -21,6 +21,7 @@ data class EternalReturnPlayRender(
     val mmrStats: EternalReturnPlayerMMRStats? = null,
     var matches: List<EternalReturnPlayerMatchData> = mutableListOf(),
     val season: String,
+    val seasonBannerUrl: String = "",
     val httpServer: String = HTTP_SERVER_URL,
     val mode :String = "排位"
 ) {

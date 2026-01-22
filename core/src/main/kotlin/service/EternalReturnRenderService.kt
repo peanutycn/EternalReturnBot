@@ -74,6 +74,13 @@ class EternalReturnRenderService {
         return "${rankStr}名（上位${pctStr}%）"
     }
 
+    private fun resolveSeasonBannerUrl(seasonName: String, seasonId: Int): String {
+        val nameNumber = Regex("\\d+").find(seasonName)?.value?.toIntOrNull()
+        val candidate = nameNumber ?: seasonId
+        val safe = if (candidate in 1..20) candidate else 10
+        return "https://cdn.dak.gg/er/images/bg/bg-landing-search-v${safe}.jpg"
+    }
+
     private fun normalizeRankKey(nickname: String, mode: MatchingMode): String =
         nickname.trim().lowercase() + "#" + mode.value
 
@@ -457,6 +464,7 @@ class EternalReturnRenderService {
             recentPlayers = recentPlays,
             characterUseStats = characterUseStats,
             season = season.name,
+            seasonBannerUrl = resolveSeasonBannerUrl(season.name, season.id),
             mode = matchingMode.modeName
         )
     }

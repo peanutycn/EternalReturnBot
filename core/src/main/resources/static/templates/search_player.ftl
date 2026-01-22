@@ -10,7 +10,7 @@
 <body>
 <div id="content-container">
     <div id="header">
-        <div id="banner_user_info">
+        <div id="banner_user_info" style="--season-bg: url('${seasonBannerUrl?html}');">
             <div class="profile-image-wrapper">
                 <#if profileImageUrl??>
                     <img src="${httpServer}${profileImageUrl}" alt=""/>
