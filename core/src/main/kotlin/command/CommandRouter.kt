@@ -9,6 +9,12 @@ import cn.luorenmu.common.util.ReflectionUtil
 import cn.luorenmu.currentAdapter
 import cn.luorenmu.exception.MessageReplyException
 import io.github.oshai.kotlinlogging.KotlinLogging
+import java.io.EOFException
+import java.net.ConnectException
+import java.net.SocketTimeoutException
+import java.net.UnknownHostException
+import java.nio.channels.UnresolvedAddressException
+import javax.net.ssl.SSLException
 
 
 /**
@@ -150,7 +156,7 @@ class CommandRouter {
             } catch (_: Exception) {
                 // ignore
             }
-            BotReply.Text("执行失败：${e.message ?: "未知错误"}")
+            buildSafeErrorReply(e)
         }
     }
 
@@ -232,6 +238,36 @@ class CommandRouter {
             commandMap[key] = inputSplit[index]
         }
         return commandMap
+    }
+
+    private fun buildSafeErrorReply(error: Throwable): BotReply {
+        val text = if (isNetworkIssue(error)) "网络原因，请稍后尝试" else "执行失败，请稍后尝试"
+        return BotReply.Text(text)
+    }
+
+    private fun isNetworkIssue(error: Throwable): Boolean {
+        var current: Throwable? = error
+        while (current != null) {
+            when (current) {
+                is SocketTimeoutException,
+                is ConnectException,
+                is UnknownHostException,
+                is UnresolvedAddressException,
+                is SSLException,
+                is EOFException -> return true
+            }
+            val typeName = current::class.java.name
+            if (typeName.startsWith("io.ktor.") && typeName.contains("Timeout", ignoreCase = true)) return true
+            if (typeName.startsWith("com.microsoft.playwright") && typeName.contains("Timeout", ignoreCase = true)) return true
+            val message = current.message?.lowercase()
+            if (message != null) {
+                if (message.contains("timeout") || message.contains("timed out") || message.contains("connection reset") || message.contains("eof")) {
+                    return true
+                }
+            }
+            current = current.cause
+        }
+        return false
     }
 
 }
