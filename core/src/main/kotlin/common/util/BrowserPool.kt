@@ -53,6 +53,7 @@ object BrowserPool {
                 .setHeadless(headlessFlag)
                 // Reduce shared memory pressure in container-like environments.
                 .setArgs(listOf("--disable-dev-shm-usage"))
+            HttpProxyUtil.resolvePlaywrightProxy()?.let { options.setProxy(it) }
             return playwright.chromium().launch(options)
         }
 

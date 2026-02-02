@@ -1,5 +1,6 @@
 package cn.luorenmu.service
 
+import cn.luorenmu.common.util.HttpProxyUtil
 import cn.luorenmu.config.AppConfig
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.ktor.client.HttpClient
@@ -13,7 +14,6 @@ import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
-import io.ktor.http.Url
 import io.ktor.http.contentType
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.serialization.json.Json
@@ -50,6 +50,9 @@ class OneBotRoleService {
     )
 
     private val client = HttpClient(CIO) {
+        engine {
+            HttpProxyUtil.applyTo(this)
+        }
         install(ContentNegotiation) {
             json(Json { ignoreUnknownKeys = true })
         }

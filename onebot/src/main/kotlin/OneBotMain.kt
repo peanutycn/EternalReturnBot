@@ -6,6 +6,7 @@ import cn.luorenmu.alert.SuperAdminMessengerContext
 import cn.luorenmu.command.CommandRouter
 import cn.luorenmu.command.entity.BotReply
 import cn.luorenmu.command.entity.MessageSender
+import cn.luorenmu.common.util.HttpProxyUtil
 import cn.luorenmu.config.AppConfig
 import cn.luorenmu.currentAdapter
 import cn.luorenmu.moduleCore
@@ -79,6 +80,9 @@ private val json = Json {
 }
 
 private val ackHttpClient = HttpClient(CIO) {
+    engine {
+        HttpProxyUtil.applyTo(this)
+    }
     install(HttpTimeout) {
         // Keep it a bit higher: some OneBot servers respond slowly under load.
         requestTimeoutMillis = 10_000
@@ -549,6 +553,9 @@ private class OneBotForwardWsControlBot(
     private val broadcastBlacklistPath = PathUtils.dataPathResolve("broadcast", "group_blacklist.json")
 
     private val client = HttpClient(CIO) {
+        engine {
+            HttpProxyUtil.applyTo(this)
+        }
         install(WebSockets)
     }
 
@@ -1167,6 +1174,9 @@ private class OneBotForwardWsBot(
     private val broadcastBlacklistLock = Any()
     private val broadcastBlacklistPath = PathUtils.dataPathResolve("broadcast", "group_blacklist.json")
     private val client = HttpClient(CIO) {
+        engine {
+            HttpProxyUtil.applyTo(this)
+        }
         install(WebSockets)
     }
 
