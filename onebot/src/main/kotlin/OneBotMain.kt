@@ -480,6 +480,19 @@ private suspend fun getGroupListHttp(): List<Long> {
 
 private fun buildImageCq(fileParam: String): String = "[CQ:image,file=$fileParam]"
 
+private fun buildOneBotMessageForHttp(reply: BotReply): String {
+    val builder = StringBuilder()
+    fun append(r: BotReply) {
+        when (r) {
+            is BotReply.Text -> builder.append(r.text)
+            is BotReply.ImageFile -> builder.append(buildImageCq(toOneBotFileParamHttp(r.path)))
+            is BotReply.Multi -> r.replies.forEach { append(it) }
+        }
+    }
+    append(reply)
+    return builder.toString()
+}
+
 private fun toOneBotFileParamHttp(path: String): String {
     val trimmed = path.trim()
     if (trimmed.startsWith("file://")) return trimmed
@@ -565,7 +578,14 @@ private suspend fun startSimbotOneBot(commandRouter: CommandRouter) {
                 when (r) {
                     is BotReply.Text -> event.reply(r.text)
                     is BotReply.ImageFile -> event.reply(OfflineImage.fileOfflineImage(r.path))
-                    is BotReply.Multi -> r.replies.forEach { replyOne(it) }
+                    is BotReply.Multi -> {
+                        val merged = buildOneBotMessageForHttp(r).trim()
+                        if (merged.isNotBlank()) {
+                            sendGroupMsgHttp(sender.groupOpenId, merged)
+                        } else {
+                            r.replies.forEach { replyOne(it) }
+                        }
+                    }
                 }
             }
             if (reply != null) replyOne(reply)
