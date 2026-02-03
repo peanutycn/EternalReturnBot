@@ -69,21 +69,16 @@ sealed class EternalReturnDakGGApi(
 
         /**
          * Matches list (used as a fallback when OpenAPI key is not configured).
+         *
+         * When season is null/blank, the server will use its default season.
          */
         class GetMatches(
             nickname: String,
-            season: String,
+            season: String?,
             matchingMode: String = "ALL",
             teamMode: String = "ALL",
             page: Int = 1,
-        ) : User(
-            "/v1/players/${URLEncoder.encode(nickname, "UTF-8")}/matches" +
-                "?season=${URLEncoder.encode(season, "UTF-8")}" +
-                "&matchingMode=${URLEncoder.encode(matchingMode, "UTF-8")}" +
-                "&teamMode=${URLEncoder.encode(teamMode, "UTF-8")}" +
-                "&page=${page}" +
-                "&hl=zh_CN"
-        )
+        ) : User(buildMatchesUrl(nickname, season, matchingMode, teamMode, page))
 
         /**
          * Match detail by game id (used for teammate rendering).
@@ -169,4 +164,25 @@ sealed class EternalReturnDakGGApi(
         )
 
     }
+}
+
+private fun buildMatchesUrl(
+    nickname: String,
+    season: String?,
+    matchingMode: String,
+    teamMode: String,
+    page: Int,
+): String {
+    val base = "/v1/players/${URLEncoder.encode(nickname, "UTF-8")}/matches"
+    val params = mutableListOf(
+        "matchingMode=${URLEncoder.encode(matchingMode, "UTF-8")}",
+        "teamMode=${URLEncoder.encode(teamMode, "UTF-8")}",
+        "page=$page",
+        "hl=zh_CN"
+    )
+    val seasonValue = season?.trim().orEmpty()
+    if (seasonValue.isNotEmpty()) {
+        params.add(0, "season=${URLEncoder.encode(seasonValue, "UTF-8")}")
+    }
+    return base + "?" + params.joinToString("&")
 }

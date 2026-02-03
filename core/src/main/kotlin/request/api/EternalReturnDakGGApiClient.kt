@@ -92,7 +92,7 @@ object EternalReturnDakGGApiClient {
 
     suspend fun getMatches(
         nickname: String,
-        season: String,
+        season: String?,
         matchingMode: String = "ALL",
         teamMode: String = "ALL",
         page: Int = 1,
@@ -125,7 +125,12 @@ object EternalReturnDakGGApiClient {
                 last = e
             }
         }
-        throw last ?: IllegalStateException("Failed to fetch matches: no season candidates")
+        return try {
+            getMatches(nickname, null)
+        } catch (e: Exception) {
+            last = e
+            throw last ?: IllegalStateException("Failed to fetch matches: no season candidates")
+        }
     }
 
     suspend fun getMatchById(
