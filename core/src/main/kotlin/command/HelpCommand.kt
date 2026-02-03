@@ -15,8 +15,8 @@ import cn.luorenmu.render.FreemarkerRenderer
  */
 @BotCommand(id = "help", alias = "帮助", value = "")
 class HelpCommand : CommandEvent {
-    override suspend fun listen(sender: MessageSender, command: Map<String, String>): BotReply {
-        val text =
+    companion object {
+        fun buildHelpText(): String =
             """
             常用指令（无需 /）：
             - 查询玩家 <名称> [模式数字]（默认排位）
@@ -48,12 +48,21 @@ class HelpCommand : CommandEvent {
             角色别名同理；发送：玩家别名 帮助 获取完整示例。
             """.trimIndent()
 
-        val imageReply = runCatching {
-            val output = PathUtils.resourcesPathResolve("render", "help", "help.png")
-            val html = FreemarkerRenderer.render("help.ftl", HelpRender(title = "ERBot 帮助", text = text))
-            BrowserPool.getBrowser().screenshotContentSelector(html, output, "#help-container")
-            BotReply.ImageFile(output.toString())
-        }.getOrNull()
+        fun renderHelpImage(): String? {
+            val text = buildHelpText()
+            return runCatching {
+                val output = PathUtils.resourcesPathResolve("render", "help", "help.png")
+                val html = FreemarkerRenderer.render("help.ftl", HelpRender(title = "ERBot 帮助", text = text))
+                BrowserPool.getBrowser().screenshotContentSelector(html, output, "#help-container")
+                output.toString()
+            }.getOrNull()
+        }
+    }
+
+    override suspend fun listen(sender: MessageSender, command: Map<String, String>): BotReply {
+        val text = buildHelpText()
+
+        val imageReply = renderHelpImage()?.let { BotReply.ImageFile(it) }
 
         return if (imageReply == null) {
             BotReply.Text(text)

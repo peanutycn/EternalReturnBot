@@ -4,6 +4,7 @@ import cn.luorenmu.Adapter
 import cn.luorenmu.alert.SuperAdminMessenger
 import cn.luorenmu.alert.SuperAdminMessengerContext
 import cn.luorenmu.command.CommandRouter
+import cn.luorenmu.command.HelpCommand
 import cn.luorenmu.command.entity.BotReply
 import cn.luorenmu.command.entity.MessageSender
 import cn.luorenmu.common.util.HttpProxyUtil
@@ -403,6 +404,34 @@ private suspend fun sendGroupMsgHttp(groupId: String, message: String) {
     }
 }
 
+private fun buildHelpText(): String = HelpCommand.buildHelpText()
+
+private fun buildHelpReplyForJoin(): BotReply {
+    val text = buildHelpText()
+    if (!AppConfig.help.onJoinImageEnabled) return BotReply.Text(text)
+    val imagePath = HelpCommand.renderHelpImage()
+    return if (imagePath == null) {
+        BotReply.Text(text)
+    } else {
+        BotReply.Multi(listOf(BotReply.Text(text), BotReply.ImageFile(imagePath)))
+    }
+}
+
+private fun buildHelpMessageForHttpJoin(): String? {
+    val text = buildHelpText()
+    if (text.isBlank()) return null
+    if (!AppConfig.help.onJoinImageEnabled) return text
+    val imagePath = HelpCommand.renderHelpImage() ?: return text
+    val fileParam = toOneBotFileParamHttp(imagePath)
+    return text + "\n" + buildImageCq(fileParam)
+}
+
+private suspend fun sendHelpToGroupHttp(groupId: Long) {
+    if (!AppConfig.help.onJoinEnabled) return
+    val message = buildHelpMessageForHttpJoin() ?: return
+    sendGroupMsgHttp(groupId.toString(), message)
+}
+
 private suspend fun getGroupListHttp(): List<Long> {
     val base = sanitizeOneBotUrl(AppConfig.oneBot.apiServerHost).trimEnd('/')
     if (!(base.startsWith("http://") || base.startsWith("https://"))) return emptyList()
@@ -447,6 +476,14 @@ private suspend fun getGroupListHttp(): List<Long> {
     }.onFailure { e ->
         log.debug(e) { "Get group list failed via HTTP POST." }
     }.getOrElse { emptyList() }
+}
+
+private fun buildImageCq(fileParam: String): String = "[CQ:image,file=$fileParam]"
+
+private fun toOneBotFileParamHttp(path: String): String {
+    val trimmed = path.trim()
+    if (trimmed.startsWith("file://")) return trimmed
+    return if (trimmed.startsWith("/")) "file://$trimmed" else trimmed
 }
 
 private fun buildSuperAdminMessengerHttp(): SuperAdminMessenger {
@@ -619,6 +656,10 @@ private class OneBotForwardWsControlBot(
             handleRequest(root)
             return
         }
+        if (postType == "notice") {
+            handleNotice(root)
+            return
+        }
         if (postType != "message") return
 
         val messageType = root.string("message_type") ?: return
@@ -629,6 +670,22 @@ private class OneBotForwardWsControlBot(
         if (plainText.isBlank()) return
 
         tryHandleSuperAdminPrivateCommand(session, userId, plainText)
+    }
+
+    private suspend fun handleNotice(root: JsonObject) {
+        if (!AppConfig.help.onJoinEnabled) return
+        val noticeType = root.string("notice_type") ?: return
+        if (noticeType != "group_increase") return
+        val selfId = root.long("self_id") ?: return
+        val userId = root.long("user_id") ?: return
+        if (selfId != userId) return
+
+        val groupId = root.long("group_id") ?: return
+        runCatching {
+            sendHelpToGroupHttp(groupId)
+        }.onFailure { e ->
+            log.warn(e) { "Failed to send help on group join via HTTP: groupId=$groupId" }
+        }
     }
 
     private suspend fun handleRequest(root: JsonObject) {
@@ -1237,6 +1294,10 @@ private class OneBotForwardWsBot(
             handleRequest(root, session)
             return
         }
+        if (postType == "notice") {
+            handleNotice(root, session)
+            return
+        }
         if (postType != "message") return
         val messageType = root.string("message_type") ?: return
         if (messageType != "group" && messageType != "private") return
@@ -1809,6 +1870,25 @@ private class OneBotForwardWsBot(
 
         runCatching {
             buildSuperAdminMessengerWs(session).sendToSuperAdmins(msg)
+        }
+    }
+
+    private suspend fun handleNotice(
+        root: JsonObject,
+        session: io.ktor.client.plugins.websocket.DefaultClientWebSocketSession,
+    ) {
+        if (!AppConfig.help.onJoinEnabled) return
+        val noticeType = root.string("notice_type") ?: return
+        if (noticeType != "group_increase") return
+        val selfId = root.long("self_id") ?: return
+        val userId = root.long("user_id") ?: return
+        if (selfId != userId) return
+
+        val groupId = root.long("group_id") ?: return
+        runCatching {
+            sendGroupReply(session, groupId, buildHelpReplyForJoin())
+        }.onFailure { e ->
+            log.warn(e) { "Failed to send help on group join via WS: groupId=$groupId" }
         }
     }
 

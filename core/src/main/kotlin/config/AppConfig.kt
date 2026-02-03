@@ -86,6 +86,13 @@ object AppConfig {
         Render(maxMatches = maxMatches, teammateMatches = teammateMatches)
     }
 
+    val help: Help by lazy {
+        Help(
+            onJoinEnabled = getBoolean("lomu.help.onJoin.enable") ?: true,
+            onJoinImageEnabled = getBoolean("lomu.help.onJoin.imageEnable") ?: true,
+        )
+    }
+
     val resources: Resources by lazy {
         val downloadConcurrency = (getInt("lomu.resources.downloadConcurrency") ?: 16).coerceIn(1, 128)
         Resources(downloadConcurrency = downloadConcurrency)
@@ -152,6 +159,11 @@ object AppConfig {
     data class Render(
         val maxMatches: Int,
         val teammateMatches: Int,
+    )
+
+    data class Help(
+        val onJoinEnabled: Boolean,
+        val onJoinImageEnabled: Boolean,
     )
 
     data class Resources(
