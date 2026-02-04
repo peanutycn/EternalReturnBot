@@ -152,7 +152,13 @@ object BrowserPool {
                     val locator = page.locator(selector)
                     pageConsumer(page)
                     // Compute bounding box after page customization (e.g. expanding scroll containers).
-                    val boundingBox = locator.boundingBox()
+                    val boundingBox = runCatching {
+                        page.waitForSelector(
+                            selector,
+                            Page.WaitForSelectorOptions().setTimeout(8000.0)
+                        )
+                        locator.boundingBox()
+                    }.getOrNull()
                     if (boundingBox == null) {
                         page.screenshot(Page.ScreenshotOptions().setPath(output).setFullPage(true))
                     } else {
