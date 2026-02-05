@@ -383,12 +383,16 @@ private suspend fun sendPrivateMsgHttp(userId: String, text: String) {
 }
 
 private suspend fun sendGroupMsgHttp(groupId: String, message: String) {
+    sendGroupMsgHttpSafe(groupId, message)
+}
+
+private suspend fun sendGroupMsgHttpSafe(groupId: String, message: String): Boolean {
     val base = sanitizeOneBotUrl(AppConfig.oneBot.apiServerHost).trimEnd('/')
-    if (!(base.startsWith("http://") || base.startsWith("https://"))) return
+    if (!(base.startsWith("http://") || base.startsWith("https://"))) return false
 
     val token = AppConfig.oneBot.accessToken?.trim()?.takeIf { it.isNotBlank() }
     val url = appendAccessToken("$base/send_group_msg", token)
-    try {
+    return try {
         ackHttpClient.post(url) {
             contentType(ContentType.Application.Json)
             if (!token.isNullOrBlank()) header(HttpHeaders.Authorization, "Bearer $token")
@@ -399,8 +403,10 @@ private suspend fun sendGroupMsgHttp(groupId: String, message: String) {
                 }.toString()
             )
         }
+        true
     } catch (e: Exception) {
         log.debug(e) { "Send group msg failed via HTTP: groupId=$groupId" }
+        false
     }
 }
 
@@ -581,7 +587,10 @@ private suspend fun startSimbotOneBot(commandRouter: CommandRouter) {
                     is BotReply.Multi -> {
                         val merged = buildOneBotMessageForHttp(r).trim()
                         if (merged.isNotBlank()) {
-                            sendGroupMsgHttp(sender.groupOpenId, merged)
+                            val ok = sendGroupMsgHttpSafe(sender.groupOpenId, merged)
+                            if (!ok) {
+                                r.replies.forEach { replyOne(it) }
+                            }
                         } else {
                             r.replies.forEach { replyOne(it) }
                         }

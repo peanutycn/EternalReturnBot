@@ -58,6 +58,13 @@ object RequestManager {
         map
     }
 
+    fun invalidateCacheByUrl(url: String) {
+        if (url.isBlank()) return
+        cacheMap.values.forEach { cache ->
+            cache.invalidate(url)
+        }
+    }
+
     private val client = HttpClient(CIO) {
         engine {
             maxConnectionsCount = 1000

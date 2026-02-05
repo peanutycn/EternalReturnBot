@@ -2,6 +2,7 @@ package cn.luorenmu.request.api
 
 import cn.luorenmu.command.entity.BotReply
 import cn.luorenmu.exception.MessageReplyException
+import cn.luorenmu.request.RequestManager
 import cn.luorenmu.request.api.entity.response.dakgg.*
 import cn.luorenmu.request.entity.module.DakGGServerName
 import cn.luorenmu.request.entity.module.DakGGTeamMode
@@ -30,6 +31,12 @@ object EternalReturnDakGGApiClient {
     }
 
     suspend fun getCharacters(): DakGGCharactersResponse {
+        return EternalReturnDakGGApi.Data.GetCharacters.call().body()
+    }
+
+    suspend fun getCharactersFresh(): DakGGCharactersResponse {
+        // Drop in-memory cache for the exact URL, then fetch again.
+        RequestManager.invalidateCacheByUrl(EternalReturnDakGGApi.Data.GetCharacters.url)
         return EternalReturnDakGGApi.Data.GetCharacters.call().body()
     }
 

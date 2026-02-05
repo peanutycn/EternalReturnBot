@@ -116,7 +116,11 @@ class ResourcesDownloadService {
 
         // Sidebar/recent-play uses original skin (first skin).
         parallelDownload(neededCharacterIds) { characterId ->
-            val characterById = charactersResponse.getCharacterById(characterId)
+            val characterById = charactersResponse.getCharacterByIdOrNull(characterId)
+            if (characterById == null) {
+                log.debug { "Skip profile character download: characterId=$characterId not found in DakGG characters list." }
+                return@parallelDownload
+            }
             val originSkinId = characterById.skins.first().id
             downloadCharacterImage(characterById, originSkinId, setOf(DakGGCharacterImgType.CharProfile))
         }
@@ -125,7 +129,11 @@ class ResourcesDownloadService {
         val profileCharacter = profileOverviewForImage?.characterStats?.firstOrNull()
         val profileCharacterId = profileCharacter?.key
         if (profileCharacterId != null) {
-            val characterById = charactersResponse.getCharacterById(profileCharacterId)
+            val characterById = charactersResponse.getCharacterByIdOrNull(profileCharacterId)
+            if (characterById == null) {
+                log.debug { "Skip profile main character download: characterId=$profileCharacterId not found in DakGG characters list." }
+                return
+            }
             val skinId = profileCharacter.skinStats?.firstOrNull()?.key ?: characterById.skins.first().id
             downloadCharacterImage(characterById, skinId, setOf(DakGGCharacterImgType.CharResult))
         }
@@ -273,8 +281,13 @@ class ResourcesDownloadService {
 
         log.debug { "gameDataDownload 开始下载角色" }
         parallelDownload(characterPairs) { (characterNum, skinCode) ->
+            val character = characterResponse.getCharacterByIdOrNull(characterNum)
+            if (character == null) {
+                log.debug { "Skip character download: characterId=$characterNum not found in DakGG characters list." }
+                return@parallelDownload
+            }
             downloadCharacterImage(
-                characterResponse.getCharacterById(characterNum),
+                character,
                 skinCode,
                 setOf(DakGGCharacterImgType.CharProfile)
             )

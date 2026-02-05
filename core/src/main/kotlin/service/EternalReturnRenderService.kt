@@ -186,12 +186,21 @@ class EternalReturnRenderService {
          */
         // val userStats = EternalReturnOpenApiClient.getUserStats(userId, 35, matchingMode)
 
-        val (profile, characters, tiers, season) = coroutineScope {
+        val (profile, charactersInit, tiers, season) = coroutineScope {
             val profileDF = ioAsync { EternalReturnDakGGApiClient.getProfile(nickname) }
             val charactersDF = ioAsync { EternalReturnDakGGApiClient.getCharacters() }
             val tierDF = ioAsync { EternalReturnDakGGApiClient.getTiers() }
             val seasonDF = ioAsync { EternalReturnDakGGApiClient.getDataCurrentSeason() }
             Quad(profileDF.await(), charactersDF.await(), tierDF.await(), seasonDF.await())
+        }
+        var characters = charactersInit
+        var charactersRefreshed = false
+        suspend fun refreshCharactersIfMissing(ids: Iterable<Long>) {
+            if (charactersRefreshed) return
+            if (ids.any { characters.getCharacterByIdOrNull(it) == null }) {
+                characters = runCatching { EternalReturnDakGGApiClient.getCharactersFresh() }.getOrElse { characters }
+                charactersRefreshed = true
+            }
         }
 
         val playerSeasonOverviews = profile.playerSeasonOverviews
@@ -214,6 +223,22 @@ class EternalReturnRenderService {
             )
         }
 
+        run {
+            val duoIds = playerSeasonOverviews
+                .firstOrNull { it.duoStats.isNotEmpty() }
+                ?.duoStats
+                ?.take(8)
+                ?.mapNotNull { it.characterStats.firstOrNull()?.key }
+                ?: emptyList()
+            val rankIds = playerSeasonOverviews
+                .firstOrNull { it.matchingModeId == 3 }
+                ?.characterStats
+                ?.take(8)
+                ?.map { it.key }
+                ?: emptyList()
+            refreshCharactersIfMissing(duoIds + rankIds)
+        }
+
 
         /**
          * 近期一起玩的人
@@ -223,12 +248,9 @@ class EternalReturnRenderService {
         playerSeasonOverviews.firstOrNull { seasonOverview -> seasonOverview.duoStats.isNotEmpty() }
             ?.let { seasonOverview ->
                 seasonOverview.duoStats.take(8).forEach { duoStat ->
-                    val characterById = characters.getCharacterById(duoStat.characterStats.first().key)
                     recentPlays.add(EternalReturnPlayRender.EternalReturnPlayerRecentPlay().apply {
-                        imageWrapperUrl = ImageResourcesType.getCharacterPath(
-                            characterById.id.toInt(), characterById.skins.first().id,
-                            DakGGCharacterImgType.CharProfile
-                        )
+                        val characterId = duoStat.characterStats.first().key
+                        imageWrapperUrl = resolveCharacterProfileImage(characters, characterId)
                         this.plays = duoStat.play
                         val playDouble = this.plays.toDouble()
                         this.nickname = duoStat.nickname
@@ -344,14 +366,10 @@ class EternalReturnRenderService {
         val characterUseStats = mutableListOf<EternalReturnPlayRender.EternalReturnCharacterUseStats>()
         playerSeasonOverviews.firstOrNull { it.matchingModeId == 3 }?.characterStats?.take(8)
             ?.forEach { characterState ->
-                val characterById = characters.getCharacterById(characterState.key)
                 characterUseStats.add(
                     EternalReturnPlayRender.EternalReturnCharacterUseStats(
-                        characterName = characterById.name,
-                        imgUrl = ImageResourcesType.getCharacterPath(
-                            characterById.id.toInt(), characterById.skins.first().id,
-                            DakGGCharacterImgType.CharProfile
-                        ),
+                        characterName = resolveCharacterName(characters, characterState.key),
+                        imgUrl = resolveCharacterProfileImage(characters, characterState.key),
                         winRate = "${
                             String.format(
                                 "%.1f",
@@ -370,20 +388,36 @@ class EternalReturnRenderService {
                 )
             }
 
-        val matches = if (AppConfig.bser.openApiKey.isNullOrBlank()) {
-            val matchesResp = EternalReturnDakGGApiClient.getMatchesAutoSeason(nickname, season)
-            matchesResp.matches.take(safeMaxMatches).map { gameConvertMatcherFromDakGG(it, characters, traitSkillIdToGroupKey) }
-        } else {
+        val hasOpenApiKey = !AppConfig.bser.openApiKey.isNullOrBlank()
+        var matchesFromOpen: List<UserGame>? = null
+        var matchesFromDakgg: List<DakGGMatchesResponse.Match>? = null
+        if (hasOpenApiKey) {
             try {
                 val userId = EternalReturnOpenApiClient.getUserNumByUserNickName(nickname).user.userId
                 val gamesResponse = EternalReturnOpenApiClient.getGamesByUserNum(userId)
-                gamesResponse.userGames.take(safeMaxMatches).map { gameConvertMatcher(it, characters, traitSkillIdToGroupKey) }
+                matchesFromOpen = gamesResponse.userGames.take(safeMaxMatches)
             } catch (e: Exception) {
                 // Fallback to DakGG when OpenAPI is forbidden / rate-limited / misconfigured.
                 log.warn(e) { "OpenAPI failed, falling back to DakGG matches: nickname=$nickname" }
                 val matchesResp = EternalReturnDakGGApiClient.getMatchesAutoSeason(nickname, season)
-                matchesResp.matches.take(safeMaxMatches).map { gameConvertMatcherFromDakGG(it, characters, traitSkillIdToGroupKey) }
+                matchesFromDakgg = matchesResp.matches.take(safeMaxMatches)
             }
+        } else {
+            val matchesResp = EternalReturnDakGGApiClient.getMatchesAutoSeason(nickname, season)
+            matchesFromDakgg = matchesResp.matches.take(safeMaxMatches)
+        }
+
+        val matchCharacterIds = when {
+            matchesFromOpen != null -> matchesFromOpen!!.map { it.characterNum }
+            matchesFromDakgg != null -> matchesFromDakgg!!.map { it.characterNum }
+            else -> emptyList()
+        }
+        refreshCharactersIfMissing(matchCharacterIds)
+
+        val matches = when {
+            matchesFromOpen != null -> matchesFromOpen!!.map { gameConvertMatcher(it, characters, traitSkillIdToGroupKey) }
+            matchesFromDakgg != null -> matchesFromDakgg!!.map { gameConvertMatcherFromDakGG(it, characters, traitSkillIdToGroupKey) }
+            else -> emptyList()
         }
 
         val teammateMatchLimit = AppConfig.render.teammateMatches.coerceAtLeast(0)
@@ -605,7 +639,7 @@ class EternalReturnRenderService {
             rpChange = game.mmrGain,
             serverName = game.serverName,
             nickName = game.nickname,
-            characterName = characters.getCharacterById(game.characterNum).name,
+            characterName = resolveCharacterName(characters, game.characterNum),
             rank = if (game.escapeState == 3) 99 else game.gameRank,
             matchingModeId = game.matchingMode,
             type = MatchingMode.convert(game.matchingMode).modeName,
@@ -649,7 +683,7 @@ class EternalReturnRenderService {
             rpChange = game.mmrGain,
             serverName = game.serverName,
             nickName = game.nickname,
-            characterName = characters.getCharacterById(game.characterNum).name,
+            characterName = resolveCharacterName(characters, game.characterNum),
             rank = if (game.escapeState == 3) 99 else game.gameRank,
             matchingModeId = game.matchingMode,
             type = MatchingMode.convert(game.matchingMode).modeName,
@@ -692,6 +726,29 @@ class EternalReturnRenderService {
         }
         return equipList
     }
+
+    private fun resolveCharacterName(
+        characters: DakGGCharactersResponse,
+        characterId: Long,
+    ): String {
+        return characters.getCharacterByIdOrNull(characterId)?.name?.takeIf { it.isNotBlank() } ?: "未知角色"
+    }
+
+
+    private fun resolveCharacterProfileImage(
+        characters: DakGGCharactersResponse,
+        characterId: Long,
+    ): String {
+        val character = characters.getCharacterByIdOrNull(characterId) ?: return ImageResourcesType.TraitSkillGroupPlaceholder.getGeneralPath("")
+        val skinId = character.skins.firstOrNull()?.id
+            ?: return ImageResourcesType.TraitSkillGroupPlaceholder.getGeneralPath("")
+        return ImageResourcesType.getCharacterPath(
+            character.id.toInt(),
+            skinId,
+            DakGGCharacterImgType.CharProfile
+        )
+    }
+
 
     private fun nicknameHide(nickname: String): String {
         return nickname

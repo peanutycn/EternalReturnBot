@@ -25,6 +25,12 @@ data class DakGGCharactersResponse(
         return this.characters.first { it.id == characterId }
     }
 
+    fun getCharacterByIdOrNull(
+        characterId: Long,
+    ): DakGGCharacterById? {
+        return this.characters.firstOrNull { it.id == characterId }
+    }
+
     @Serializable
     data class DakGGCharacterById(
         val id: Long = 0,
