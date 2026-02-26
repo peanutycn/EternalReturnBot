@@ -97,6 +97,26 @@ object EternalReturnDakGGApiClient {
             }
     }
 
+    suspend fun syncPlayer(nickname: String, maxRetries: Int = 3): Boolean {
+        var attempt = 0
+        while (attempt < maxRetries) {
+            val resp = EternalReturnDakGGApi.User.SyncPlayer(nickname).call()
+            val text = resp.bodyAsText()
+            if (!resp.status.isSuccess()) {
+                return true
+            }
+            if (text.contains("retry_after")) {
+                attempt += 1
+                continue
+            }
+            if (text.contains("invalid name")) {
+                return false
+            }
+            return !text.contains("not_found")
+        }
+        return true
+    }
+
     suspend fun getMatches(
         nickname: String,
         season: String?,

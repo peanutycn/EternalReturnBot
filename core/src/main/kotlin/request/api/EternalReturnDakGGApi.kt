@@ -62,6 +62,15 @@ sealed class EternalReturnDakGGApi(
         cacheTime: CacheTime = CacheTime.FIVE_MINUTES,
     ) : EternalReturnDakGGApi(url, method, headers, body, cacheTime) {
         /**
+         * Force DakGG to refresh player data by nickname.
+         */
+        class SyncPlayer(nickname: String) :
+            User(
+                "/v0/rpc/player-sync/by-name/${URLEncoder.encode(nickname, "UTF-8")}",
+                cacheTime = CacheTime.NULL
+            )
+
+        /**
          * 获取用户信息、不传入season默认当前赛季
          */
         class GetProfile(nickname: String) :

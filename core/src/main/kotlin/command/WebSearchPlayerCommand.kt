@@ -5,6 +5,7 @@ import cn.luorenmu.command.entity.MessageSender
 import cn.luorenmu.common.annotation.BotCommand
 import cn.luorenmu.common.util.BrowserPool
 import cn.luorenmu.common.util.PathUtils
+import cn.luorenmu.request.api.EternalReturnDakGGApiClient
 import cn.luorenmu.request.api.EternalReturnWebUrls
 import cn.luorenmu.service.AliasService
 import com.microsoft.playwright.Page
@@ -31,6 +32,11 @@ class WebSearchPlayerCommand : CommandEvent {
             return BotReply.Text("名称不合法：$nickname")
         }
 
+        val syncOk = runCatching { EternalReturnDakGGApiClient.syncPlayer(nickname) }.getOrDefault(true)
+        if (!syncOk) {
+            return BotReply.Text("不存在的玩家 -> $nickname")
+        }
+
         val url = EternalReturnWebUrls.playerPage(nickname)
         val outputPath = PathUtils.resourcesPathResolve("render", "web", "player", "${nickname}.png")
 
@@ -50,4 +56,3 @@ class WebSearchPlayerCommand : CommandEvent {
         return BotReply.ImageFile(outputPath.toString())
     }
 }
-

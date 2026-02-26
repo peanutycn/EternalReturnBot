@@ -48,6 +48,10 @@ class SearchPlayer : CommandEvent {
             userId = sender.senderOpenId,
             input = inputNickname
         ).value
+        val syncOk = runCatching { EternalReturnDakGGApiClient.syncPlayer(nickname) }.getOrDefault(true)
+        if (!syncOk) {
+            return BotReply.Text("不存在的玩家 -> $nickname")
+        }
         val mode = command["mode"]?.toIntOrNull()?.let { MatchingMode.convert(it) } ?: MatchingMode.Rank
         val maxMatches = AppConfig.render.maxMatches
         preheatRequest(nickname, mode, maxMatches)
