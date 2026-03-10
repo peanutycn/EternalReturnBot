@@ -5,6 +5,7 @@ import cn.luorenmu.command.entity.CommandInfo
 import cn.luorenmu.command.entity.BotReply
 import cn.luorenmu.command.entity.MessageSender
 import cn.luorenmu.common.annotation.BotCommand
+import cn.luorenmu.common.util.CommandTextNormalizer
 import cn.luorenmu.common.util.ReflectionUtil
 import cn.luorenmu.currentAdapter
 import cn.luorenmu.exception.MessageReplyException
@@ -64,6 +65,33 @@ class CommandRouter {
             "查詢角色" to "查询角色",
             "英雄统计" to "实验体统计",
             "角色统计" to "实验体统计",
+            "查詢玩家" to "查询玩家",
+            "玩家查詢" to "查询玩家",
+            "戰績查詢" to "查询玩家",
+            "查詢戰績" to "查询玩家",
+            "幫助" to "帮助",
+            "玩家別名" to "alias",
+            "角色別名" to "alias",
+            "別名權限" to "alias",
+            "權限診斷" to "alias",
+            "網頁查詢" to "网页查询玩家",
+            "網頁查詢玩家" to "网页查询玩家",
+            "查詢實驗體" to "查询角色",
+            "查詢英雄" to "查询角色",
+            "查詢路線" to "查询路线",
+            "查詢路徑" to "查询路线",
+            "實驗體統計" to "实验体统计",
+            "角色統計" to "实验体统计",
+            "英雄統計" to "实验体统计",
+            "查詢永恆線" to "永恒线",
+            "查詢半神線" to "永恒线",
+            "永恆線" to "永恒线",
+            "半神線" to "永恒线",
+            "永恆分數" to "永恒线",
+            "半神分數" to "永恒线",
+            "永恆多少分" to "永恒线",
+            "段位統計" to "段位统计",
+            "反饋" to "反馈",
         )
 
         private val URL_TRIGGERS: List<Pair<Regex, String>> = listOf(
@@ -74,7 +102,7 @@ class CommandRouter {
             LEGACY_SYNONYMS[sanitizeKey(raw)] ?: sanitizeKey(raw)
 
         private fun sanitizeKey(raw: String): String {
-            var s = raw.trim()
+            var s = CommandTextNormalizer.normalize(raw).trim()
             if (s.isEmpty()) return s
             // Strip common trailing punctuation from chat messages.
             s = s.trimEnd('?', '？', '!', '！', '。', '.', '，', ',', '、', ';', '；', ':', '：')
@@ -94,6 +122,14 @@ class CommandRouter {
             "角色查询",
             "查询英雄",
             "查詢角色",
+            "查詢玩家",
+            "查詢戰績",
+            "戰績查詢",
+            "網頁查詢玩家",
+            "查詢路線",
+            "查詢路徑",
+            "查詢實驗體",
+            "查詢英雄",
 
             "网页查询玩家",
             "查询路线",
@@ -201,8 +237,10 @@ class CommandRouter {
         }
 
         // Support "no-space" commands like "查询玩家摸余ovo" / "查询角色威廉".
+        val normalizedOriginCommand = CommandTextNormalizer.normalize(originCommand)
         val matchedPrefix = PREFIX_KEYS.firstOrNull { k ->
-            originCommand.length > k.length && originCommand.startsWith(k)
+            val normalizedKey = CommandTextNormalizer.normalize(k)
+            normalizedOriginCommand.length > normalizedKey.length && normalizedOriginCommand.startsWith(normalizedKey)
         } ?: return null
 
         // Only allow no-space form for selected commands to avoid accidental triggers.

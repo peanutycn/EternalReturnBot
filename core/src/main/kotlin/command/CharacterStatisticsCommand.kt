@@ -4,6 +4,7 @@ import cn.luorenmu.command.entity.BotReply
 import cn.luorenmu.command.entity.MessageSender
 import cn.luorenmu.common.annotation.BotCommand
 import cn.luorenmu.common.util.BrowserPool
+import cn.luorenmu.common.util.CommandTextNormalizer
 import cn.luorenmu.common.util.PathUtils
 import cn.luorenmu.request.api.EternalReturnWebUrls
 import com.microsoft.playwright.Page
@@ -46,7 +47,7 @@ class CharacterStatisticsCommand : CommandEvent {
     }
 
     private fun parseTier(plainText: String): String? {
-        val parts = plainText.trim().removePrefix("/").split(Regex("\\s+")).filter { it.isNotBlank() }
+        val parts = CommandTextNormalizer.normalize(plainText).trim().removePrefix("/").split(Regex("\\s+")).filter { it.isNotBlank() }
         if (parts.size <= 1) return null
         val token = parts[1].trim()
         val s = token.lowercase()

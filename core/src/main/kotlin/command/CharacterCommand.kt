@@ -4,6 +4,7 @@ import cn.luorenmu.command.entity.BotReply
 import cn.luorenmu.command.entity.MessageSender
 import cn.luorenmu.common.annotation.BotCommand
 import cn.luorenmu.common.util.BrowserPool
+import cn.luorenmu.common.util.CommandTextNormalizer
 import cn.luorenmu.common.util.PathUtils
 import cn.luorenmu.common.util.toPinyin
 import cn.luorenmu.request.api.EternalReturnDakGGApiClient
@@ -135,15 +136,20 @@ class CharacterCommand : CommandEvent {
     }
 
     private fun extractArgsRemainder(text: String): String? {
+        val normalizedText = CommandTextNormalizer.normalize(text)
         val candidates = listOf(
             "查询角色",
             "查询实验体",
             "角色查询",
             "查询英雄",
             "查詢角色",
+            "查詢實驗體",
+            "查詢英雄",
             "character",
         )
-        val hit = candidates.firstOrNull { c -> text.startsWith(c, ignoreCase = true) } ?: return null
+        val hit = candidates.firstOrNull { c ->
+            normalizedText.startsWith(CommandTextNormalizer.normalize(c), ignoreCase = true)
+        } ?: return null
         return text.substring(hit.length).trim()
     }
 

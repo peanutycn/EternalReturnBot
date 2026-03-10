@@ -6,6 +6,7 @@ import cn.luorenmu.command.entity.HelpRender
 import cn.luorenmu.command.entity.MessageSender
 import cn.luorenmu.common.annotation.BotCommand
 import cn.luorenmu.common.util.BrowserPool
+import cn.luorenmu.common.util.CommandTextNormalizer
 import cn.luorenmu.common.util.PathUtils
 import cn.luorenmu.config.AppConfig
 import cn.luorenmu.currentAdapter
@@ -28,7 +29,7 @@ class AliasCommand : CommandEvent {
     override suspend fun listen(sender: MessageSender, command: Map<String, String>): BotReply {
         val parts = sender.plainText.split(Regex("\\s+")).filter { it.isNotBlank() }
         if (parts.isEmpty()) return help()
-        val head = parts[0].trim()
+        val head = CommandTextNormalizer.normalize(parts[0].trim())
         val headNoSlash = head.removePrefix("/")
 
         // Permission diagnosis (superAdmins only).
@@ -95,12 +96,12 @@ class AliasCommand : CommandEvent {
     }
 
     private fun isManagerCommand(raw: String): Boolean {
-        val v = raw.lowercase()
+        val v = CommandTextNormalizer.normalize(raw).lowercase()
         return v == "manager" || v == "perm" || v == "权限" || v == "管理员"
     }
 
     private suspend fun handleManagerCommand(parts: List<String>, groupId: String, userId: String, userRole: String?): BotReply {
-        val sub = parts.getOrNull(2)?.lowercase() ?: "list"
+        val sub = CommandTextNormalizer.normalize(parts.getOrNull(2).orEmpty()).lowercase().ifEmpty { "list" }
         return when (sub) {
             "list", "ls" -> {
                 val managers = aliasService.listManagers(groupId)
@@ -127,30 +128,31 @@ class AliasCommand : CommandEvent {
     }
 
     private fun parseNamespace(raw: String): AliasService.Namespace? =
-        when (raw.lowercase()) {
+        when (CommandTextNormalizer.normalize(raw).lowercase()) {
             "player", "p", "玩家" -> AliasService.Namespace.PLAYER
             "character", "c", "角色" -> AliasService.Namespace.CHARACTER
             else -> null
         }
 
     private fun parseScopeAndVerb(action: String): Pair<AliasService.Scope, String>? {
+        val normalized = CommandTextNormalizer.normalize(action).lowercase()
         return when {
-            action == "list" -> AliasService.Scope.PERSONAL to "list"
-            action == "get" -> AliasService.Scope.PERSONAL to "get"
-            action == "set" -> AliasService.Scope.PERSONAL to "set"
-            action == "del" || action == "rm" -> AliasService.Scope.PERSONAL to "del"
+            normalized == "list" -> AliasService.Scope.PERSONAL to "list"
+            normalized == "get" -> AliasService.Scope.PERSONAL to "get"
+            normalized == "set" -> AliasService.Scope.PERSONAL to "set"
+            normalized == "del" || normalized == "rm" -> AliasService.Scope.PERSONAL to "del"
 
-            action == "glist" -> AliasService.Scope.GROUP to "list"
-            action == "gget" -> AliasService.Scope.GROUP to "get"
-            action == "gset" -> AliasService.Scope.GROUP to "set"
-            action == "gdel" || action == "grm" -> AliasService.Scope.GROUP to "del"
+            normalized == "glist" -> AliasService.Scope.GROUP to "list"
+            normalized == "gget" -> AliasService.Scope.GROUP to "get"
+            normalized == "gset" -> AliasService.Scope.GROUP to "set"
+            normalized == "gdel" || normalized == "grm" -> AliasService.Scope.GROUP to "del"
 
-            action == "alist" -> AliasService.Scope.GLOBAL to "list"
-            action == "aget" -> AliasService.Scope.GLOBAL to "get"
-            action == "aset" -> AliasService.Scope.GLOBAL to "set"
-            action == "adel" || action == "arm" -> AliasService.Scope.GLOBAL to "del"
+            normalized == "alist" -> AliasService.Scope.GLOBAL to "list"
+            normalized == "aget" -> AliasService.Scope.GLOBAL to "get"
+            normalized == "aset" -> AliasService.Scope.GLOBAL to "set"
+            normalized == "adel" || normalized == "arm" -> AliasService.Scope.GLOBAL to "del"
 
-            action == "help" || action == "h" || action == "?" || action == "？" -> AliasService.Scope.PERSONAL to "help"
+            normalized == "help" || normalized == "h" || normalized == "?" || normalized == "？" -> AliasService.Scope.PERSONAL to "help"
             else -> null
         }
     }
@@ -366,7 +368,7 @@ class AliasCommand : CommandEvent {
     )
 
     private fun parseCnAction(parts: List<String>, startIndex: Int): CnAction? {
-        val raw = parts.getOrNull(startIndex)?.trim().orEmpty()
+        val raw = CommandTextNormalizer.normalize(parts.getOrNull(startIndex)?.trim().orEmpty())
         if (raw.isEmpty()) return CnAction(AliasService.Scope.PERSONAL, "help", 0)
 
         fun verbFromToken(t: String): String? = when (t) {
@@ -375,6 +377,7 @@ class AliasCommand : CommandEvent {
             "删除", "del", "rm" -> "del"
             "查询", "get" -> "get"
             "申请" -> "apply"
+            "管理员" -> "manager"
             "帮助", "help", "h", "?", "？" -> "help"
             else -> null
         }
@@ -414,14 +417,14 @@ class AliasCommand : CommandEvent {
         // Split Chinese forms: 群 设置 / 全局 列表 ...
         when (raw) {
             "群", "本群", "群内" -> {
-                val v = verbFromToken(parts.getOrNull(startIndex + 1)?.trim().orEmpty()) ?: return null
+                val v = verbFromToken(CommandTextNormalizer.normalize(parts.getOrNull(startIndex + 1)?.trim().orEmpty())) ?: return null
                 return CnAction(AliasService.Scope.GROUP, v, 2)
             }
 
             "全局" -> {
-                val v = verbFromToken(parts.getOrNull(startIndex + 1)?.trim().orEmpty()) ?: return null
+                val v = verbFromToken(CommandTextNormalizer.normalize(parts.getOrNull(startIndex + 1)?.trim().orEmpty())) ?: return null
                 if (v == "apply") {
-                    val op = parts.getOrNull(startIndex + 2)?.trim().orEmpty()
+                    val op = CommandTextNormalizer.normalize(parts.getOrNull(startIndex + 2)?.trim().orEmpty())
                     val mapped = when (op) {
                         "设置", "set", "add" -> "apply_set"
                         "删除", "del", "rm" -> "apply_del"
