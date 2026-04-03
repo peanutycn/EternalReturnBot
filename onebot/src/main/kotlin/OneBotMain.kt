@@ -410,6 +410,30 @@ private suspend fun sendGroupMsgHttpSafe(groupId: String, message: String): Bool
     }
 }
 
+private suspend fun leaveGroupHttpSafe(groupId: String): Boolean {
+    val base = sanitizeOneBotUrl(AppConfig.oneBot.apiServerHost).trimEnd('/')
+    if (!(base.startsWith("http://") || base.startsWith("https://"))) return false
+
+    val token = AppConfig.oneBot.accessToken?.trim()?.takeIf { it.isNotBlank() }
+    val url = appendAccessToken("$base/set_group_leave", token)
+    return try {
+        ackHttpClient.post(url) {
+            contentType(ContentType.Application.Json)
+            if (!token.isNullOrBlank()) header(HttpHeaders.Authorization, "Bearer $token")
+            setBody(
+                buildJsonObject {
+                    put("group_id", toJsonNumberOrString(groupId))
+                    put("is_dismiss", JsonPrimitive(false))
+                }.toString()
+            )
+        }
+        true
+    } catch (e: Exception) {
+        log.debug(e) { "Leave group failed via HTTP: groupId=$groupId" }
+        false
+    }
+}
+
 private fun buildHelpText(): String = HelpCommand.buildHelpText()
 
 private fun buildHelpReplyForJoin(): BotReply {
@@ -560,12 +584,13 @@ private suspend fun startSimbotOneBot(commandRouter: CommandRouter) {
             // Group shortcut: guide users to DM the bot (superAdmin only).
             run {
                 val text = sender.plainText.trim()
-                if (text == "群发帮助" || text == "群发 帮助" || text == "回执帮助" || text == "回执 帮助") {
+                if (text == "群发帮助" || text == "群发 帮助" || text == "回执帮助" || text == "回执 帮助" || text == "退群帮助" || text == "退群 帮助") {
                     event.reply(
                         """
                         这些是“超级管理员私聊 bot”指令：
                         - 群发帮助 / 群发 ...
                         - 回执帮助 / 回执回复 ...
+                        - 退群帮助 / 退群全部 ...
                         """.trimIndent()
                     )
                     return@process
@@ -615,6 +640,7 @@ private class OneBotForwardWsControlBot(
     private val echo = AtomicLong(1)
     private val pendingActionResponses = ConcurrentHashMap<Long, CompletableDeferred<JsonObject>>()
     private val pendingBroadcastByUser = ConcurrentHashMap<Long, PendingBroadcast>()
+    private val pendingLeaveAllByUser = ConcurrentHashMap<Long, PendingLeaveAll>()
     private val broadcastBlacklistLock = Any()
     private val broadcastBlacklistPath = PathUtils.dataPathResolve("broadcast", "group_blacklist.json")
 
@@ -628,6 +654,12 @@ private class OneBotForwardWsControlBot(
     private data class PendingBroadcast(
         val token: String,
         val content: String,
+        val groupIds: List<Long>,
+        val createdAtMs: Long,
+    )
+
+    private data class PendingLeaveAll(
+        val token: String,
         val groupIds: List<Long>,
         val createdAtMs: Long,
     )
@@ -830,6 +862,20 @@ private class OneBotForwardWsControlBot(
         }.distinct()
     }
 
+    private suspend fun getGroupIdListForLeave(
+        session: io.ktor.client.plugins.websocket.DefaultClientWebSocketSession,
+    ): List<Long> {
+        val fromWs = runCatching { getGroupIdListWs(session) }.getOrNull().orEmpty()
+        if (fromWs.isNotEmpty()) return fromWs
+
+        val fromHttp = runCatching { getGroupListHttp() }.getOrNull().orEmpty()
+        if (fromHttp.isNotEmpty()) {
+            log.debug { "Leave-all group list fallback to HTTP: size=${fromHttp.size}" }
+            return fromHttp
+        }
+        return emptyList()
+    }
+
     private suspend fun getGroupIdListForBroadcast(
         session: io.ktor.client.plugins.websocket.DefaultClientWebSocketSession,
     ): List<Long> {
@@ -907,7 +953,7 @@ private class OneBotForwardWsControlBot(
     private fun buildBroadcastHelp(): String =
         """
         [ERBot 群发（仅超级管理员）]
-        说明：需要开启 lomu.broadcast.enable=true；并且建议“私聊 bot”执行。
+        说明：群发需要开启 lomu.broadcast.enable=true；退群功能不受该开关影响。并且建议“私聊 bot”执行。
 
         1) 发送预览：
            群发 <内容>
@@ -923,6 +969,27 @@ private class OneBotForwardWsControlBot(
            群发黑名单 列表
            群发黑名单 添加 <群号>
            群发黑名单 删除 <群号>
+
+        5) 无消息退全部群（不会在群里发消息）：
+           退群帮助
+           退群全部
+           退群确认 <token>
+           退群取消
+        """.trimIndent()
+
+    private fun buildLeaveAllHelp(): String =
+        """
+        [ERBot 退群（仅超级管理员）]
+        说明：请用“私聊 bot”执行；不会发送群消息。
+
+        1) 生成预览：
+           退群全部
+
+        2) 确认执行：
+           退群确认 <token>
+
+        3) 取消：
+           退群取消
         """.trimIndent()
 
     private suspend fun tryHandleReceiptPrivateCommand(
@@ -1010,6 +1077,101 @@ private class OneBotForwardWsControlBot(
 
         // Receipt reply is always available for superAdmins (doesn't depend on broadcast switch).
         if (tryHandleReceiptPrivateCommand(session, userId, text)) return true
+
+        if (text == "退群帮助" || text == "退群 帮助") {
+            sendPrivateTextWs(session, userId, buildLeaveAllHelp())
+            return true
+        }
+
+        if (text == "退群取消") {
+            val removed = pendingLeaveAllByUser.remove(userId)
+            sendPrivateTextWs(session, userId, if (removed == null) "当前没有待确认的退群操作。" else "已取消退群。")
+            return true
+        }
+
+        if (text.startsWith("退群确认")) {
+            val parts = text.split(Regex("\\s+")).filter { it.isNotBlank() }
+            val token = parts.getOrNull(1).orEmpty()
+            if (token.isBlank()) {
+                sendPrivateTextWs(session, userId, "用法：退群确认 <token>")
+                return true
+            }
+            val pending = pendingLeaveAllByUser[userId]
+            if (pending == null) {
+                sendPrivateTextWs(session, userId, "当前没有待确认的退群操作。")
+                return true
+            }
+            val ttlMs = AppConfig.broadcast.confirmTtlSeconds.toLong() * 1000L
+            val now = System.currentTimeMillis()
+            if (now - pending.createdAtMs > ttlMs) {
+                pendingLeaveAllByUser.remove(userId)
+                sendPrivateTextWs(session, userId, "退群确认已过期，请重新发送：退群全部")
+                return true
+            }
+            if (pending.token != token) {
+                sendPrivateTextWs(session, userId, "token 不匹配。请确认后再试。")
+                return true
+            }
+
+            pendingLeaveAllByUser.remove(userId)
+            val total = pending.groupIds.size
+            if (total <= 0) {
+                sendPrivateTextWs(session, userId, "目标群列表为空，未执行。")
+                return true
+            }
+
+            val delayMs = AppConfig.broadcast.sendDelayMs.toLong().coerceAtLeast(0)
+            sendPrivateTextWs(session, userId, "开始退群：目标群数=$total（每群间隔${delayMs}ms）")
+
+            var left = 0
+            var failed = 0
+            val failedGroups = mutableListOf<Long>()
+            for (gid in pending.groupIds) {
+                val ok = leaveGroupHttpSafe(gid.toString())
+                if (ok) {
+                    left++
+                } else {
+                    failed++
+                    if (failedGroups.size < 5) failedGroups.add(gid)
+                }
+                if (delayMs > 0) delay(delayMs)
+            }
+            val tail = if (failedGroups.isEmpty()) "" else "（失败示例群：${failedGroups.joinToString(",")}）"
+            sendPrivateTextWs(session, userId, "退群完成：成功 $left/$total，失败 $failed/$total。$tail")
+            return true
+        }
+
+        if (text == "退群全部") {
+            val allGroups = getGroupIdListForBroadcast(session)
+            if (allGroups.isEmpty()) {
+                sendPrivateTextWs(
+                    session,
+                    userId,
+                    "获取群列表失败：返回为空（请确认 OneBot HTTP API 可用；若仍为空，可先在目标群里发任意消息让 bot 记录“已见群”）。"
+                )
+                return true
+            }
+
+            val token = UUID.randomUUID().toString().replace("-", "").take(6)
+            pendingLeaveAllByUser[userId] = PendingLeaveAll(
+                token = token,
+                groupIds = allGroups,
+                createdAtMs = System.currentTimeMillis(),
+            )
+            sendPrivateTextWs(
+                session,
+                userId,
+                """
+                [退群预览]
+                目标群：${allGroups.size}
+                操作：直接退出全部群，不发送群消息
+
+                确认执行：退群确认 $token（${AppConfig.broadcast.confirmTtlSeconds}s 内有效）
+                取消：退群取消
+                """.trimIndent()
+            )
+            return true
+        }
 
         // Guard: feature must be enabled explicitly.
         if (!AppConfig.broadcast.enable) {
@@ -1255,6 +1417,7 @@ private class OneBotForwardWsBot(
     private val echo = AtomicLong(1)
     private val pendingActionResponses = ConcurrentHashMap<Long, CompletableDeferred<JsonObject>>()
     private val pendingBroadcastByUser = ConcurrentHashMap<Long, PendingBroadcast>()
+    private val pendingLeaveAllByUser = ConcurrentHashMap<Long, PendingLeaveAll>()
     private val receiptById = ConcurrentHashMap<String, ReceiptTarget>()
     private val receiptTtlMs: Long = 7L * 24L * 60L * 60L * 1000L
     private val broadcastBlacklistLock = Any()
@@ -1269,6 +1432,12 @@ private class OneBotForwardWsBot(
     private data class PendingBroadcast(
         val token: String,
         val content: String,
+        val groupIds: List<Long>,
+        val createdAtMs: Long,
+    )
+
+    private data class PendingLeaveAll(
+        val token: String,
         val groupIds: List<Long>,
         val createdAtMs: Long,
     )
@@ -1362,7 +1531,7 @@ private class OneBotForwardWsBot(
         // Super-admin help shortcuts (group). The actual operations are available via private chat.
         run {
             val t = plainText.trim()
-            if (isSuperAdmin(userId) && (t == "群发帮助" || t == "群发 帮助" || t == "回执帮助")) {
+            if (isSuperAdmin(userId) && (t == "群发帮助" || t == "群发 帮助" || t == "回执帮助" || t == "退群帮助" || t == "退群 帮助")) {
                 sendGroupReply(session, groupId, BotReply.Text(buildGroupAdminHelpHint()))
                 return
             }
@@ -1445,6 +1614,20 @@ private class OneBotForwardWsBot(
             val obj = el as? JsonObject ?: return@mapNotNull null
             obj.long("group_id")
         }.distinct()
+    }
+
+    private suspend fun getGroupIdListForLeave(
+        session: io.ktor.client.plugins.websocket.DefaultClientWebSocketSession,
+    ): List<Long> {
+        val fromWs = runCatching { getGroupIdListWs(session) }.getOrNull().orEmpty()
+        if (fromWs.isNotEmpty()) return fromWs
+
+        val fromHttp = runCatching { getGroupListHttp() }.getOrNull().orEmpty()
+        if (fromHttp.isNotEmpty()) {
+            log.debug { "Leave-all group list fallback to HTTP: size=${fromHttp.size}" }
+            return fromHttp
+        }
+        return emptyList()
     }
 
     private fun readBroadcastBlacklistFile(): MutableSet<Long> {
@@ -1672,7 +1855,7 @@ private class OneBotForwardWsBot(
     private fun buildBroadcastHelp(): String =
         """
         [ERBot 群发（仅超级管理员）]
-        说明：需要开启 lomu.broadcast.enable=true；并且建议“私聊 bot”执行。
+        说明：群发需要开启 lomu.broadcast.enable=true；退群功能不受该开关影响。并且建议“私聊 bot”执行。
 
         1) 发送预览：
            群发 <内容>
@@ -1688,6 +1871,27 @@ private class OneBotForwardWsBot(
            群发黑名单 列表
            群发黑名单 添加 <群号>
            群发黑名单 删除 <群号>
+
+        5) 无消息退全部群（不会在群里发消息）：
+           退群帮助
+           退群全部
+           退群确认 <token>
+           退群取消
+        """.trimIndent()
+
+    private fun buildLeaveAllHelp(): String =
+        """
+        [ERBot 退群（仅超级管理员）]
+        说明：请用“私聊 bot”执行；不会发送群消息。
+
+        1) 生成预览：
+           退群全部
+
+        2) 确认执行：
+           退群确认 <token>
+
+        3) 取消：
+           退群取消
         """.trimIndent()
 
     private fun buildGroupAdminHelpHint(): String =
@@ -1695,6 +1899,7 @@ private class OneBotForwardWsBot(
         这些指令需要“超级管理员私聊 bot”触发：
         - 群发帮助 / 群发 ...
         - 回执帮助 / 回执回复 ...
+        - 退群帮助 / 退群全部 ...
         """.trimIndent()
 
     private suspend fun tryHandleSuperAdminPrivateCommand(
@@ -1709,6 +1914,104 @@ private class OneBotForwardWsBot(
 
         // Receipt reply is always available for superAdmins (doesn't depend on broadcast switch).
         if (tryHandleReceiptPrivateCommand(session, userId, text)) return true
+
+        if (text == "退群帮助" || text == "退群 帮助") {
+            sendPrivateTextWs(session, userId, buildLeaveAllHelp())
+            return true
+        }
+
+        if (text == "退群取消") {
+            val removed = pendingLeaveAllByUser.remove(userId)
+            sendPrivateTextWs(session, userId, if (removed == null) "当前没有待确认的退群操作。" else "已取消退群。")
+            return true
+        }
+
+        if (text.startsWith("退群确认")) {
+            val parts = text.split(Regex("\\s+")).filter { it.isNotBlank() }
+            val token = parts.getOrNull(1).orEmpty()
+            if (token.isBlank()) {
+                sendPrivateTextWs(session, userId, "用法：退群确认 <token>")
+                return true
+            }
+            val pending = pendingLeaveAllByUser[userId]
+            if (pending == null) {
+                sendPrivateTextWs(session, userId, "当前没有待确认的退群操作。")
+                return true
+            }
+            val ttlMs = AppConfig.broadcast.confirmTtlSeconds.toLong() * 1000L
+            val now = System.currentTimeMillis()
+            if (now - pending.createdAtMs > ttlMs) {
+                pendingLeaveAllByUser.remove(userId)
+                sendPrivateTextWs(session, userId, "退群确认已过期，请重新发送：退群全部")
+                return true
+            }
+            if (pending.token != token) {
+                sendPrivateTextWs(session, userId, "token 不匹配。请确认后再试。")
+                return true
+            }
+
+            pendingLeaveAllByUser.remove(userId)
+            val total = pending.groupIds.size
+            if (total <= 0) {
+                sendPrivateTextWs(session, userId, "目标群列表为空，未执行。")
+                return true
+            }
+            val delayMs = AppConfig.broadcast.sendDelayMs.toLong().coerceAtLeast(0)
+            sendPrivateTextWs(session, userId, "开始退群：目标群数=$total（每群间隔${delayMs}ms）")
+            var left = 0
+            var failed = 0
+            val failedGroups = mutableListOf<Long>()
+            for (gid in pending.groupIds) {
+                val ok = leaveGroupHttpSafe(gid.toString()) || runCatching {
+                    sendAction(
+                        session,
+                        action = "set_group_leave",
+                        params = buildJsonObject {
+                            put("group_id", JsonPrimitive(gid))
+                            put("is_dismiss", JsonPrimitive(false))
+                        },
+                    )
+                }.isSuccess
+                if (ok) {
+                    left++
+                } else {
+                    failed++
+                    if (failedGroups.size < 5) failedGroups.add(gid)
+                }
+                if (delayMs > 0) delay(delayMs)
+            }
+            val tail = if (failedGroups.isEmpty()) "" else "（失败示例群：${failedGroups.joinToString(",")}）"
+            sendPrivateTextWs(session, userId, "退群完成：成功 $left/$total，失败 $failed/$total。$tail")
+            return true
+        }
+
+        if (text == "退群全部") {
+            val allGroups = getGroupIdListForLeave(session)
+            if (allGroups.isEmpty()) {
+                sendPrivateTextWs(session, userId, "获取群列表失败：返回为空（OneBot 可能不支持 get_group_list，或 WS 不返回 action 响应；若已配置 HTTP API，也请确认配置可用）。")
+                return true
+            }
+
+            val token = UUID.randomUUID().toString().replace("-", "").take(6)
+            pendingLeaveAllByUser[userId] = PendingLeaveAll(
+                token = token,
+                groupIds = allGroups,
+                createdAtMs = System.currentTimeMillis(),
+            )
+            sendPrivateTextWs(
+                session,
+                userId,
+                """
+                [退群预览]
+                目标群：${allGroups.size}
+                操作：直接退出全部群，不发送群消息
+
+                确认执行：退群确认 $token（${AppConfig.broadcast.confirmTtlSeconds}s 内有效）
+                取消：退群取消
+                """.trimIndent()
+            )
+            return true
+        }
 
         // Guard: feature must be enabled explicitly.
         if (!AppConfig.broadcast.enable) {
